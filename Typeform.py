@@ -5,6 +5,7 @@
 ## Incremental ETL implementation for Typeform.
 ## Brings all your Typeform data into tables on a regular SQL database.
 ## Designed to be executed everyday to bring incremental data from Typeform.
+## Tested with MySQL 5, but should run with any SQL database with little or no effort.
 ## 
 ## USAGE
 ## - Create a database with a schema as on schema.sql
