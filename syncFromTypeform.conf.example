@@ -1,0 +1,5 @@
+# Auth key to login into Typeform API
+typeform_token='4H................Mz'
+
+# Database URL
+database='mysql://user:password@database.com/chemaname?charset=utf8'
