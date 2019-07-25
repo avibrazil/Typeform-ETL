@@ -6,6 +6,13 @@
 ## Brings all your Typeform data into tables on a regular SQL database.
 ## Designed to be executed everyday to bring incremental data from Typeform.
 ## 
+## USAGE
+## - Create a database with a schema as on schema.sql
+## - Get a Typeform API key
+## - Create a config file from syncFromTypeform.conf.example and put API and DB URL
+## - Run ./Typeform.py for a first (might be big) sync
+## - For an incremental ETL, schedule your system (cron) to run it like this several times per day
+##
 ## Notebook and module written by Avi Alkalay <avi at unix.sh>
 ## São Paulo, July 2019
 ##
