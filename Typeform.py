@@ -145,7 +145,7 @@ class TypeformSync:
         fields = []
 
         # This column order (and names) must match the respective table in the database
-        formItemsColumns=['id','form','ref','type','title']
+        formItemsColumns=['id','form','name','type','title']
 
         self.logger.debug('Requesting form items…')
 
@@ -167,7 +167,7 @@ class TypeformSync:
                     field['form']               = form
                     field['id']                 = f['id']
                     field['title']              = f['title']
-                    field['ref']                = f['ref']
+                    field['name']               = f['ref']
                     field['type']               = f['type']
                     
                     if 'description' in f:
@@ -181,7 +181,7 @@ class TypeformSync:
                     field = {}
                     field['form']      = form
                     field['title']     = 'f'
-                    field['ref']       = 'f'
+                    field['name']      = 'f'
                     field['type']      = 'hidden'
 
                     idCalc.update('{}hidden{}'.format(form,f).encode('utf-8'))
@@ -223,7 +223,7 @@ class TypeformSync:
                                            headers=self.typeformHeader).json()
                     
                     
-                    self.logger.debug('Form «{}», submitted={}, looks like: {}'.format(form,completed,str(self.response)[:150]))
+                    #self.logger.debug('Form «{}», submitted={}, looks like: {}'.format(form,completed,str(self.response)[:150]))
 
                 except requests.exceptions.RequestException as error:
                     self.logger.error('Error trying to get response statistics for form «{}».'.format(form), exc_info=True)
@@ -353,11 +353,16 @@ class TypeformSync:
             {'df': 'forms',     'temp': 'forms_temp',      'table': 'forms'},
             {'df': 'formItems', 'temp': 'form_items_temp', 'table': 'form_items'},
             {'df': 'responses', 'temp': 'responses_temp',  'table': 'responses'},
-            {'df': 'answers',   'temp': 'answers_temp',    'table': 'answers'}
+            {'df': 'answers',   'temp': 'answers_temp',    'table': 'answers',  'blob': ['answer']}
         ]
         
         for e in comb:
             self.logger.debug('Writting «{df}» dataframe updates to «{table}» table in DB'.format(df=e['df'],table=e['table']))
+            
+            blobs={}
+            if 'blob' in e.keys():
+                for col in e['blob']:
+                    blobs[col]='blob'
             
             if self.__dict__[e['df']].shape[0] > 1.25*self.dbWriteChunckSize:
                 for chunk in range(0,math.ceil(self.__dict__[e['df']].shape[0]/self.dbWriteChunckSize)):
@@ -369,6 +374,7 @@ class TypeformSync:
                     self.__dict__[e['df']][chunk*self.dbWriteChunckSize:(chunk+1)*self.dbWriteChunckSize-1].reset_index().to_sql(
                         name=e['temp'],
                         index=False,
+                        dtype=blobs,
                         if_exists='append',
                         con=self.db
                     )
@@ -376,6 +382,7 @@ class TypeformSync:
                 self.__dict__[e['df']].reset_index().to_sql(
                     name=e['temp'],
                     index=False,
+                    dtype=blobs,
                     if_exists='replace',
                     con=self.db
                 )
@@ -401,6 +408,7 @@ def main():
     logging.getLogger().setLevel(logging.DEBUG)
     logging.getLogger('Typeform').setLevel(logging.DEBUG)
     logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
+    logging.getLogger().addHandler(logging.StreamHandler())
 
     context=ConfigObj(config)
 
