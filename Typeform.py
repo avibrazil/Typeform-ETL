@@ -26,6 +26,7 @@ from datetime import datetime
 from dateutil import parser as dateparser
 import json
 import requests
+from sqlalchemy.types import BLOB
 import pandas as pd
 from configobj import ConfigObj    # dnf install python3-configobj
 import sqlalchemy
@@ -43,11 +44,11 @@ class TypeformSync:
     respListURL='https://api.typeform.com/forms/{id}/responses?since={since}&page_size={psize}&page={page}&completed={completed}'
     typeformHeader=None
 
-
+    
     # DB parameters
     db=None
     lastSync=None
-    dbWriteChunckSize=750 # records
+    dbWriteChunckSize=3000 # records
 
     
     # DataFrames for updated tables of entities to be synced
@@ -73,7 +74,7 @@ class TypeformSync:
 
     def __connectDB(self):
         try:
-            self.db=sqlalchemy.create_engine(self.dbURL)
+            self.db=sqlalchemy.create_engine(self.dbURL, encoding='utf8')
         except sqlalchemy.exc.SQLAlchemyError as error:
             self.logger.error('Can’t connect to DB.', exc_info=True)
             raise error
@@ -96,8 +97,15 @@ class TypeformSync:
     def __setLastSync(self):
         lastData=self.responses['landed'].sort_values(ascending=False).head(1)[0]
         self.db.execute("UPDATE options SET value='{}' WHERE name='typeform_last'".format(lastData))
+        self.db.execute("INSERT INTO synclog (timestamp,forms,form_items,responses,answers) VALUES (UTC_TIMESTAMP(),{},{},{},{})".format(
+            self.forms.shape[0],
+            self.formItems.shape[0],
+            self.responses.shape[0],
+            self.answers.shape[0]
+        ))
+
         
-        
+                
     def getWorkspaces(self):
         # Still unused
         workspaceColumns=['id', 'url', 'title']
@@ -133,8 +141,6 @@ class TypeformSync:
         self.forms=pd.DataFrame(columns=formColumns)
         self.forms=self.forms.append(forms)
         self.forms.set_index('id',inplace=True)
-
-        self.logger.info('Number of forms: {}'.format(self.forms.shape[0]))
 
         del forms
 
@@ -193,11 +199,9 @@ class TypeformSync:
         self.formItems=self.formItems.append(fields)
         self.formItems.set_index('id',inplace=True)
 
-        self.logger.info('Number of form items: {}'.format(self.formItems.shape[0]))
-
         del fields
         
-        
+
         
     def getResponses(self):
         meta     = {}
@@ -210,6 +214,8 @@ class TypeformSync:
         answerColumns=['id', 'form', 'response', 'field', 'data_type_hint', 'answer']
         
 
+#         debugIndex=['KPbhd6'] #,'APiACy','YRyBYh']
+#         for form in debugIndex:
         for form in self.forms.index:
             for completed in [True,False]:
                 completed=str(completed).lower()
@@ -332,10 +338,15 @@ class TypeformSync:
         self.answers.sort_values(by='response', inplace=True)
         del answers    
     
+
+    
+    def statistics(self):
+        self.logger.info('Number of forms: {}'.format(self.forms.shape[0]))
+        self.logger.info('Number of form fields: {}'.format(self.formItems.shape[0]))
         self.logger.info('Number of responses: {}'.format(self.responses.shape[0]))
         self.logger.info('Number of fields answered: {}'.format(self.answers.shape[0]))
 
-    
+        
     
     def getUpdates(self):
         self.logger.debug('Requesting form updates since {}…'.format(self.lastSync))
@@ -362,30 +373,45 @@ class TypeformSync:
             blobs={}
             if 'blob' in e.keys():
                 for col in e['blob']:
-                    blobs[col]='blob'
+                    blobs[col]=BLOB
             
-            if self.__dict__[e['df']].shape[0] > 1.25*self.dbWriteChunckSize:
-                for chunk in range(0,math.ceil(self.__dict__[e['df']].shape[0]/self.dbWriteChunckSize)):
-                    self.logger.debug('Writting «{df}» to DB: [{start}:{end}]'.format(
-                        df=e['df'],
-                        start=chunk*self.dbWriteChunckSize,
-                        end=(chunk+1)*self.dbWriteChunckSize-1
-                    ))
-                    self.__dict__[e['df']][chunk*self.dbWriteChunckSize:(chunk+1)*self.dbWriteChunckSize-1].reset_index().to_sql(
+            try:
+                
+                # Pandas plain to_sql() doesn't take care of correct column data type,
+                # so we have to inherit from target table like this:
+                self.db.execute('DROP TABLE IF EXISTS {temp};'.format(temp=e['temp'],target=e['table']))
+                self.db.execute('CREATE TABLE {temp} AS SELECT * FROM {target} LIMIT 1;'.format(temp=e['temp'],target=e['table']))
+                self.db.execute('TRUNCATE TABLE {temp};'.format(temp=e['temp'],target=e['table']))
+
+                if self.__dict__[e['df']].shape[0] > 1.25*self.dbWriteChunckSize:
+                    for chunk in range(0,math.ceil(self.__dict__[e['df']].shape[0]/self.dbWriteChunckSize)):
+                        self.logger.debug('Writting «{df}» to DB: [{start}:{end})'.format(
+                            df=e['df'],
+                            start=chunk*self.dbWriteChunckSize,
+                            end=(chunk+1)*self.dbWriteChunckSize
+                        ))
+                        self.__dict__[e['df']][chunk*self.dbWriteChunckSize:(chunk+1)*self.dbWriteChunckSize].reset_index().to_sql(
+                            name=e['temp'],
+                            index=False,
+    #                         dtype=blobs,
+    #                         method=None,
+                            if_exists='append',
+                            con=self.db
+                        )
+                else:
+                    self.__dict__[e['df']].reset_index().to_sql(
                         name=e['temp'],
                         index=False,
-                        dtype=blobs,
-                        if_exists='append',
+    #                     dtype=blobs,
+    #                     method=None,
+                        if_exists='replace',
                         con=self.db
                     )
-            else:
-                self.__dict__[e['df']].reset_index().to_sql(
-                    name=e['temp'],
-                    index=False,
-                    dtype=blobs,
-                    if_exists='replace',
-                    con=self.db
-                )
+            except BaseException as e:
+                self.logger.error('Error writting temporary table to database.', exc_info=True)
+                raise e
+
+
 
             self.db.execute('REPLACE INTO {target} (SELECT * FROM {temp}); DROP TABLE {temp};'.format(temp=e['temp'],target=e['table']))
         
@@ -398,6 +424,10 @@ class TypeformSync:
         self.syncUpdates()
         
         self.__setLastSync()
+        
+        self.statistics()
+
+
 
 
         
