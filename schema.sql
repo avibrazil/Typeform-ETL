@@ -2,11 +2,12 @@
 
 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
-SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
+SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
 
 -- -----------------------------------------------------
--- Schema braseg
+-- Schema 
 -- -----------------------------------------------------
+-- utf8mb4_bin is the most compatible and emoji-ready charset I could find.
 
 -- -----------------------------------------------------
 -- Table `forms`
@@ -18,11 +19,10 @@ CREATE TABLE IF NOT EXISTS `forms` (
   `workspace` TINYTEXT NULL DEFAULT NULL COMMENT 'Typeform workspace ID',
   `updated` TIMESTAMP NULL DEFAULT NULL COMMENT 'When form was last updated, UTC time',
   `url` VARCHAR(1000) NULL DEFAULT NULL COMMENT 'Typeform URL that capture answers from humans',
-  `title` TEXT NULL DEFAULT NULL COMMENT 'Title of the form',
-  `description` MEDIUMTEXT NULL DEFAULT NULL,
+  `title` TEXT CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_bin' NULL DEFAULT NULL COMMENT 'Title of the form',
+  `description` MEDIUMTEXT CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_bin' NULL DEFAULT NULL,
   PRIMARY KEY (`id`(12)))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8
 COMMENT = 'A Typeform form';
 
 CREATE UNIQUE INDEX `id_UNIQUE` ON `forms` (`id`(12) ASC);
@@ -34,7 +34,7 @@ CREATE UNIQUE INDEX `id_UNIQUE` ON `forms` (`id`(12) ASC);
 DROP TABLE IF EXISTS `responses` ;
 
 CREATE TABLE IF NOT EXISTS `responses` (
-  `id` TINYTEXT CHARACTER SET 'utf8mb4' NOT NULL COMMENT 'Typeform response ID',
+  `id` TINYTEXT NOT NULL COMMENT 'Typeform response ID',
   `form` TINYTEXT CHARACTER SET 'ascii' NOT NULL COMMENT 'Form ID that this response refers to',
   `landed` TIMESTAMP NULL COMMENT 'When user landed in form, UTC time',
   `submitted` TIMESTAMP NULL COMMENT 'When user submitted the form, UTC time. If this is year 1970, means used didn’t submit.',
@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS `responses` (
   `referer` TEXT NULL DEFAULT NULL COMMENT 'referer URL',
   PRIMARY KEY (`id`(35)))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8
 COMMENT = 'A Typeform user response without the response fields';
 
 CREATE UNIQUE INDEX `id_UNIQUE` ON `responses` (`id`(35) ASC);
@@ -58,14 +57,13 @@ CREATE INDEX `submitted_idx` ON `responses` (`submitted`(4) ASC);
 DROP TABLE IF EXISTS `form_items` ;
 
 CREATE TABLE IF NOT EXISTS `form_items` (
-  `id` TINYTEXT CHARACTER SET 'utf8mb4' NOT NULL COMMENT 'Typeform form field ID',
+  `id` TINYTEXT NOT NULL COMMENT 'Typeform form field ID',
   `form` TINYTEXT CHARACTER SET 'ascii' NOT NULL COMMENT 'Form ID that owns this field',
   `name` TINYTEXT NULL DEFAULT NULL COMMENT 'Field slug',
   `type` TINYTEXT NULL DEFAULT NULL COMMENT 'Semantic data type',
-  `title` TEXT NULL DEFAULT NULL COMMENT 'field title',
+  `title` TEXT CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_bin' NULL DEFAULT NULL COMMENT 'field title',
   PRIMARY KEY (`id`(12)))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8
 COMMENT = 'A Typeform form field';
 
 CREATE UNIQUE INDEX `id_UNIQUE` ON `form_items` (`id`(12) ASC);
@@ -83,7 +81,7 @@ CREATE INDEX `type_idx` ON `form_items` (`type`(15) ASC);
 DROP TABLE IF EXISTS `answers` ;
 
 CREATE TABLE IF NOT EXISTS `answers` (
-  `id` TINYTEXT CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_general_ci' NOT NULL COMMENT 'Computed unique and deterministic field answer ID',
+  `id` TINYTEXT NOT NULL COMMENT 'Computed unique and deterministic field answer ID',
   `form` TINYTEXT CHARACTER SET 'ascii' NOT NULL COMMENT 'Form ID that this answer refers to',
   `response` TINYTEXT CHARACTER SET 'ascii' NOT NULL COMMENT 'Response ID that this answer refers to',
   `field` TINYTEXT NULL DEFAULT NULL COMMENT 'Field ID that this answer refers to',
@@ -91,7 +89,6 @@ CREATE TABLE IF NOT EXISTS `answers` (
   `answer` LONGTEXT CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_bin' NULL DEFAULT NULL COMMENT 'Actual user answer for the [hidden] field',
   PRIMARY KEY (`id`(14)))
 ENGINE = InnoDB
-DEFAULT CHARACTER SET = utf8
 COMMENT = 'A Typeform user response for each [hidden] field';
 
 CREATE UNIQUE INDEX `id_UNIQUE` ON `answers` (`id`(14) ASC);
@@ -245,7 +242,7 @@ SELECT tot.form_id,
        tot.form_title,
        tot.field_title,
        tot.first,
-       tot.latest,
+       tot.last,
        (prom.count / tot.count) - (det.count / tot.count) AS NPS,
        det.count AS detratores,
        neut.count AS neutros,
@@ -282,7 +279,7 @@ FROM
   (SELECT form_id,
           field_name,
           min(submitted) AS FIRST,
-          max(submitted) AS latest,
+          max(submitted) AS last,
           form_title,
           field_title,
           TYPE,
