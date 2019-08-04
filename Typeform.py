@@ -96,18 +96,28 @@ class TypeformSync:
         
     def __setLastSync(self):
         lastData=self.responses['landed'].sort_values(ascending=False).head(1)[0]
+
+        # Set last sync date
         self.db.execute("UPDATE options SET value='{}' WHERE name='typeform_last'".format(lastData))
+
+        # Update the sync log
         self.db.execute("INSERT INTO synclog (timestamp,forms,form_items,responses,answers) VALUES (UTC_TIMESTAMP(),{},{},{},{})".format(
             self.forms.shape[0],
             self.formItems.shape[0],
             self.responses.shape[0],
             self.answers.shape[0]
         ))
+        
+        # Update the daily NPS materialized view
+        if self.answers.shape[0] > 0:
+            # This is a heavy task, so only if we have new answers
+            self.db.execute("""DROP TABLE IF EXISTS nps_daily_mv;
+                            CREATE TABLE nps_daily_mv AS SELECT * FROM nps_daily;""")
 
         
                 
     def getWorkspaces(self):
-        # Still unused
+        # Still unimplemented
         workspaceColumns=['id', 'url', 'title']
 
 
@@ -435,8 +445,8 @@ class TypeformSync:
 
 def main():
     # Switch between INFO/DEBUG while running in production/developping:
-    logging.getLogger().setLevel(logging.DEBUG)
-    logging.getLogger('Typeform').setLevel(logging.DEBUG)
+    logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger('Typeform').setLevel(logging.INFO)
     logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
     logging.getLogger().addHandler(logging.StreamHandler())
 

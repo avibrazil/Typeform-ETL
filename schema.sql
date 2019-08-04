@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS `super_answers` (`id` INT, `submitted` INT, `form_id`
 -- -----------------------------------------------------
 -- Placeholder table for view `nps_daily`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `nps_daily` (`form_id` INT, `field_name` INT, `date` INT, `type` INT, `form_title` INT, `field_title` INT, `NPS_date` INT, `detractors` INT, `passives` INT, `promoters` INT, `total` INT, `detr_cumulative` INT, `pass_cumulative` INT, `prom_cumulative` INT, `totl_cumulative` INT, `NPS_cumulative` INT);
+CREATE TABLE IF NOT EXISTS `nps_daily` (`form_id` INT, `field_name` INT, `date` INT, `type` INT, `form_title` INT, `field_title` INT, `NPS_ofdate` INT, `detractors` INT, `passives` INT, `promoters` INT, `total` INT, `detr_cumulative` INT, `pass_cumulative` INT, `prom_cumulative` INT, `totl_cumulative` INT, `NPS_cumulative` INT);
 
 -- -----------------------------------------------------
 -- Placeholder table for view `nps`
@@ -155,7 +155,25 @@ CREATE TABLE IF NOT EXISTS `nps` (`form_id` INT, `field_name` INT, `type` INT, `
 -- -----------------------------------------------------
 -- Placeholder table for view `_nps_daily`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `_nps_daily` (`form_id` INT, `field_name` INT, `DATE` INT, `type` INT, `form_title` INT, `field_title` INT, `NPS_date` INT, `detractors` INT, `passives` INT, `promoters` INT, `total` INT, `detr_cumulative_count` INT, `pass_cumulative_count` INT, `prom_cumulative_count` INT, `totl_cumulative_count` INT);
+CREATE TABLE IF NOT EXISTS `_nps_daily` (`form_id` INT, `field_name` INT, `DATE` INT, `type` INT, `form_title` INT, `field_title` INT, `NPS_ofdate` INT, `detractors` INT, `passives` INT, `promoters` INT, `total` INT, `detr_cumulative_count` INT, `pass_cumulative_count` INT, `prom_cumulative_count` INT, `totl_cumulative_count` INT);
+
+-- -----------------------------------------------------
+-- procedure refresh_nps_daily_mv
+-- -----------------------------------------------------
+DROP procedure IF EXISTS `refresh_nps_daily_mv`;
+
+DELIMITER $$
+CREATE PROCEDURE refresh_nps_daily_mv (OUT rc INT)
+    BEGIN
+        DROP TABLE nps_daily_mv;
+
+        CREATE TABLE nps_daily_mv AS
+        SELECT * FROM nps_daily;
+
+        SET rc = 0;
+    END;$$
+
+DELIMITER ;
 
 -- -----------------------------------------------------
 -- View `super_answers`
@@ -193,7 +211,7 @@ SELECT form_id,
        type,
        form_title,
        field_title,
-       NPS_date,
+       NPS_ofdate,
        detractors,
        passives,
        promoters,
@@ -287,7 +305,7 @@ SELECT totl.form_id,
        totl.type,
        totl.form_title,
        totl.field_title,
-       (prom.count / totl.count)-(detr.count / totl.count) AS NPS_date,
+       (prom.count / totl.count)-(detr.count / totl.count) AS NPS_ofdate,
        detr.count AS detractors,
        pass.count AS passives,
        prom.count AS promoters,
