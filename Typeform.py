@@ -62,7 +62,7 @@ class TypeformSync:
     logger=None
 
     
-    def __init__(self,token=None,dburl=None):
+    def __init__(self,token=None,dburl=None,restart=False,dbupdate=True):
         self.token=token
         self.dbURL=dburl
         
@@ -192,12 +192,13 @@ class TypeformSync:
                     fields.append(field)
 
             if 'hidden' in self.response:
+                for f in self.response['hidden']:
                     idCalc=hashlib.new('shake_256')
 
                     field = {}
                     field['form']      = form
-                    field['title']     = 'f'
-                    field['name']      = 'f'
+                    field['title']     = f
+                    field['name']      = f
                     field['type']      = 'hidden'
 
                     idCalc.update('{}hidden{}'.format(form,f).encode('utf-8'))
