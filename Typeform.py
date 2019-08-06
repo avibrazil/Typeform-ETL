@@ -381,17 +381,12 @@ class TypeformSync:
             {'df': 'forms',     'temp': 'forms_temp',      'table': 'forms'},
             {'df': 'formItems', 'temp': 'form_items_temp', 'table': 'form_items'},
             {'df': 'responses', 'temp': 'responses_temp',  'table': 'responses'},
-            {'df': 'answers',   'temp': 'answers_temp',    'table': 'answers',  'blob': ['answer']}
+            {'df': 'answers',   'temp': 'answers_temp',    'table': 'answers'}
         ]
         
         for e in comb:
             self.logger.debug('Writting «{df}» dataframe updates to «{table}» table in DB'.format(df=e['df'],table=e['table']))
-            
-            blobs={}
-            if 'blob' in e.keys():
-                for col in e['blob']:
-                    blobs[col]=BLOB
-            
+
             try:
                 
                 # Pandas plain to_sql() doesn't take care of correct column data type,
