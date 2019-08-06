@@ -20,6 +20,7 @@
 
 
 import logging
+import logging.handlers
 import math
 import hashlib
 from datetime import datetime
@@ -30,8 +31,7 @@ from sqlalchemy.types import BLOB
 import pandas as pd
 from configobj import ConfigObj    # dnf install python3-configobj
 import sqlalchemy
-
-config='syncFromTypeform.conf'
+import argparse
 
 module_logger = logging.getLogger(__name__)
 
@@ -66,7 +66,10 @@ class TypeformSync:
         self.token=token
         self.dbURL=dburl
         
-        self.logger=logging.getLogger(__name__ + '.TypeformSync')
+        if __name__ == '__main__':
+            self.logger=logging.getLogger('Typeform.TypeformSync')
+        else:
+            self.logger=logging.getLogger(__name__ + '.TypeformSync')
 
         self.typeformHeader={'Authorization': f'Bearer {self.token}'}
         
@@ -117,8 +120,14 @@ class TypeformSync:
         # Update the daily NPS materialized view
         if self.answers.shape[0] > 0:
             # This is a heavy task, so only if we have new answers
-            self.db.execute("""DROP TABLE IF EXISTS nps_daily_mv;
-                            CREATE TABLE nps_daily_mv AS SELECT * FROM nps_daily;""")
+            
+            self.logger.debug('Update nps_daily_mv materialized view…')
+
+            self.db.execute("DROP TABLE IF EXISTS nps_daily_mv2;")
+            self.db.execute("CREATE TABLE nps_daily_mv2 AS SELECT * FROM nps_daily;")
+                            
+            self.db.execute("DROP TABLE IF EXISTS nps_daily_mv;")
+            self.db.execute("RENAME TABLE nps_daily_mv2 TO nps_daily_mv;")
 
         
                 
@@ -444,19 +453,84 @@ class TypeformSync:
 
 
         
-        
+def prepareLogging(level=logging.INFO):
+    # Switch between INFO/DEBUG while running in production/developping:
+    logging.getLogger('Typeform').setLevel(level)
+    logging.getLogger('Typeform.TypeformSync').setLevel(level)
+    logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
+    logging.captureWarnings(True)
+    
+    if level == logging.DEBUG:
+        # Show messages on screen too:
+        logging.getLogger().addHandler(logging.StreamHandler())
+
+    # Send messages to Syslog:
+    logging.getLogger().addHandler(logging.handlers.SysLogHandler(address='/dev/log'))
+    
+    
+def prepareArgs():
+    parser = argparse.ArgumentParser(description='EXTRACT Typeform recent responses, TRANSFORM them into table and LOAD results into a database')
+    
+    parser.add_argument('--database', '--db', dest='database', nargs=1,
+                        help='Destination database URL as «mysql://user:pass@host.com/dbname?charset=utf8mb4»')
+    
+    parser.add_argument('--updatedb', '-u', dest='dbupdate', default=True, action='store_false',
+                        help='Get updates from Typeform but do not update database')    
+
+    parser.add_argument('--typeform', '-t', dest='typeform_token', nargs=1,
+                        help='Typeform API key')
+
+    parser.add_argument('--restart', '-r', dest='restart', default=False, action='store_true',
+                        help='Ignore last sync info stored on DB and get all responses from Typeform')
+
+    parser.add_argument('--debug', '-d', dest='debug', default=False, action='store_true',
+                        help='Be more verbose and output messages to console in addition to (the default) syslog')
+
+    parser.add_argument('--config', '-c', dest='config', default='syncFromTypeform.conf',
+                        help='Config file with Typeform API key and destination database URL')
+
+    return parser.parse_args()
+
+
 
 def main():
-    # Switch between INFO/DEBUG while running in production/developping:
-    logging.getLogger().setLevel(logging.INFO)
-    logging.getLogger('Typeform').setLevel(logging.INFO)
-    logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
-    logging.getLogger().addHandler(logging.StreamHandler())
+    args=prepareArgs()
 
-    context=ConfigObj(config)
-
-    tf = TypeformSync(context['typeform_token'],context['database'])
+    # Read config file
+    context=ConfigObj(args.config)
     
+    # Remove empty args
+    if args.database is None:
+        args.database=context['database']
+
+    if args.typeform_token is None:
+        args.typeform_token=context['typeform_token']
+    
+
+    
+    # Merge configuration file parameters with command line arguments
+    context.update(vars(args))
+    
+    print(context)
+    
+    # Setup logging
+    if context['debug']:
+        prepareLogging(logging.DEBUG)
+    else:
+        prepareLogging()
+    
+
+
+    # Prepare syncing machine
+    tf = TypeformSync(
+        token=context['typeform_token'],
+        dburl=context['database'],
+        restart=context['restart'],
+        dbupdate=context['dbupdate']
+    )
+    
+    
+    # Read Typeform updates and write to DB
     tf.sync()
     
     
