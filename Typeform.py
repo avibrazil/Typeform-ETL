@@ -70,6 +70,9 @@ class TypeformSync:
 
         self.typeformHeader={'Authorization': f'Bearer {self.token}'}
         
+        self.restart=restart
+        self.dbUpdate=dbupdate
+        
         
 
     def __connectDB(self):
@@ -84,9 +87,12 @@ class TypeformSync:
             
             
     def __getLastSync(self):
-        options=pd.read_sql("SELECT * FROM options;", self.db)
+        if self.restart:
+            self.lastSync = None
+        else:
+            options=pd.read_sql("SELECT * FROM options;", self.db)
+            self.lastSync = options[options.name=='typeform_last']['value'].values[0]
 
-        self.lastSync = options[options.name=='typeform_last']['value'].values[0]
         if self.lastSync != None:
             self.lastSync = dateparser.parse(self.lastSync)
         else:
@@ -432,9 +438,10 @@ class TypeformSync:
         self.__getLastSync()
 
         self.getUpdates()
-        self.syncUpdates()
         
-        self.__setLastSync()
+        if self.dbUpdate:
+            self.syncUpdates()
+            self.__setLastSync()
         
         self.statistics()
 
