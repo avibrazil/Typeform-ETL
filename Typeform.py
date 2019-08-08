@@ -511,7 +511,7 @@ def main():
     # Merge configuration file parameters with command line arguments
     context.update(vars(args))
     
-    print(context)
+    # print(context)
     
     # Setup logging
     if context['debug']:

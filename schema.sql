@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS `nps` (`form_id` INT, `field_name` INT, `type` INT, `
 -- -----------------------------------------------------
 -- Placeholder table for view `_nps_daily`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `_nps_daily` (`form_id` INT, `field_name` INT, `DATE` INT, `type` INT, `form_title` INT, `field_title` INT, `NPS_ofdate` INT, `detractors` INT, `passives` INT, `promoters` INT, `total` INT, `detr_cumulative_count` INT, `pass_cumulative_count` INT, `prom_cumulative_count` INT, `totl_cumulative_count` INT);
+CREATE TABLE IF NOT EXISTS `_nps_daily` (`form_id` INT, `field_name` INT, `date` INT, `type` INT, `form_title` INT, `field_title` INT, `answer_cumulative_average` INT, `answer_cumulative_stddeviation` INT, `NPS_ofdate` INT, `detractors` INT, `passives` INT, `promoters` INT, `total` INT, `detr_cumulative_count` INT, `pass_cumulative_count` INT, `prom_cumulative_count` INT, `totl_cumulative_count` INT);
 
 -- -----------------------------------------------------
 -- procedure refresh_nps_daily_mv
@@ -165,10 +165,11 @@ DROP procedure IF EXISTS `refresh_nps_daily_mv`;
 DELIMITER $$
 CREATE PROCEDURE refresh_nps_daily_mv (OUT rc INT)
     BEGIN
-        DROP TABLE nps_daily_mv;
-
-        CREATE TABLE nps_daily_mv AS
-        SELECT * FROM nps_daily;
+		DROP TABLE IF EXISTS nps_daily_mv2;
+        CREATE TABLE nps_daily_mv2 AS SELECT * FROM nps_daily;
+                            
+        DROP TABLE IF EXISTS nps_daily_mv;
+        RENAME TABLE nps_daily_mv2 TO nps_daily_mv;
 
         SET rc = 0;
     END;$$
@@ -229,69 +230,81 @@ FROM _nps_daily;
 DROP TABLE IF EXISTS `nps`;
 DROP VIEW IF EXISTS `nps` ;
 CREATE OR REPLACE VIEW nps AS
-SELECT totl.form_id,
-       totl.field_name,
-       totl.type,
+SELECT f.form AS form_id,
+       f.name AS field_name,
+       f.type,
        totl.form_title,
-       totl.field_title,
+       f.title AS field_title,
        totl.first,
        totl.last,
        (prom.count / totl.count) - (detr.count / totl.count) AS NPS,
-       detr.count AS detractors,
-       pass.count AS passives,
-       prom.count AS promoters,
-       totl.count AS total,
-       totl.average,
-       totl.std_deviation
+       COALESCE(detr.count,0) AS detractors,
+       COALESCE(pass.count,0) AS passives,
+       COALESCE(prom.count,0) AS promoters,
+       COALESCE(totl.count,0) AS total,
+       COALESCE(totl.average,0) AS average,
+       COALESCE(totl.std_deviation,0) AS std_deviation
 FROM
+       form_items AS f
+
+LEFT OUTER JOIN
+
   (SELECT form_id,
           field_name,
-          COUNT(answer) AS COUNT
+          min(submitted) AS first,
+          max(submitted) AS last,
+          form_title,
+          field_title,
+          TYPE,
+          AVG(answer) AS average,
+          STDDEV_SAMP(answer) AS std_deviation,
+          COUNT(answer) AS count
+   FROM super_answers
+   WHERE data_type_hint='number'
+   GROUP BY form_id,
+            field_name) AS totl
+
+ON f.form=totl.form_id AND f.name=totl.field_name
+
+LEFT OUTER JOIN
+
+  (SELECT form_id,
+          field_name,
+          COUNT(answer) AS count
    FROM super_answers
    WHERE answer <= 6
      AND data_type_hint='number'
    GROUP BY form_id,
-            field_name) AS detr,
+            field_name) AS detr
+
+USING (form_id, field_name)
+
+LEFT OUTER JOIN
 
   (SELECT form_id,
           field_name,
-          COUNT(answer) AS COUNT
+          COUNT(answer) AS count
    FROM super_answers
    WHERE answer >= 7
      AND answer <= 8
      AND data_type_hint='number'
    GROUP BY form_id,
-            field_name) AS pass,
+            field_name) AS pass
+
+USING (form_id, field_name)
+
+LEFT OUTER JOIN
 
   (SELECT form_id,
           field_name,
-          COUNT(answer) AS COUNT
+          COUNT(answer) AS count
    FROM super_answers
    WHERE answer >= 9
      AND data_type_hint='number'
    GROUP BY form_id,
-            field_name) AS prom,
+            field_name) AS prom
 
-  (SELECT form_id,
-          field_name,
-          min(submitted) AS FIRST,
-          max(submitted) AS LAST,
-          form_title,
-          field_title,
-          TYPE,
-          avg(answer) AS average,
-          stddev(answer) AS std_deviation,
-          COUNT(answer) AS COUNT
-   FROM super_answers
-   WHERE data_type_hint='number'
-   GROUP BY form_id,
-            field_name) AS totl
-WHERE detr.form_id = pass.form_id
-  AND pass.form_id = prom.form_id
-  AND prom.form_id = totl.form_id
-  AND detr.field_name = pass.field_name
-  AND pass.field_name = prom.field_name
-  AND prom.field_name = totl.field_name;
+USING (form_id, field_name);
 
 -- -----------------------------------------------------
 -- View `_nps_daily`
@@ -301,89 +314,86 @@ DROP VIEW IF EXISTS `_nps_daily` ;
 CREATE OR REPLACE VIEW _nps_daily AS
 SELECT totl.form_id,
        totl.field_name,
-       totl.date_tag AS DATE,
+       totl.date_tag AS date,
        totl.type,
        totl.form_title,
        totl.field_title,
-       (prom.count / totl.count)-(detr.count / totl.count) AS NPS_ofdate,
-       detr.count AS detractors,
-       pass.count AS passives,
-       prom.count AS promoters,
-       totl.count AS total,
 
-  (SELECT COUNT(answer)
-   FROM super_answers a
-   WHERE answer <= 6
-     AND form_id = totl.form_id
-     AND field_name = totl.field_name
-     AND DATE(submitted) <= DATE
-     AND data_type_hint='number'
-   GROUP BY form_id,
-            field_name) AS detr_cumulative_count,
-
-  (SELECT COUNT(answer)
-   FROM super_answers a
-   WHERE answer >= 7
-     AND answer <= 8
-     AND form_id = totl.form_id
-     AND field_name = totl.field_name
-     AND DATE(submitted) <= DATE
-     AND data_type_hint='number'
-   GROUP BY form_id,
-            field_name) AS pass_cumulative_count,
-
-  (SELECT COUNT(answer)
-   FROM super_answers a
-   WHERE answer >= 9
-     AND form_id = totl.form_id
-     AND field_name = totl.field_name
-     AND DATE(submitted) <= DATE
-     AND data_type_hint='number'
-   GROUP BY form_id,
-            field_name) AS prom_cumulative_count,
-
-  (SELECT COUNT(answer)
-   FROM super_answers a
+  COALESCE((SELECT AVG(answer)
+   FROM super_answers
    WHERE form_id = totl.form_id
      AND field_name = totl.field_name
-     AND DATE(a.submitted) <= DATE
      AND data_type_hint='number'
+     AND DATE(submitted) <= date
    GROUP BY form_id,
-            field_name) AS totl_cumulative_count
-FROM
-  (SELECT form_id,
-          field_name,
-          DATE(submitted) AS date_tag,
-          COUNT(answer) AS COUNT
-   FROM super_answers
-   WHERE answer <= 6
-     AND data_type_hint='number'
-   GROUP BY form_id,
-            field_name,
-            DATE(submitted)) AS detr,
+            field_name),0) AS answer_cumulative_average,
 
-  (SELECT form_id,
-          field_name,
-          DATE(submitted) AS date_tag,
-          COUNT(answer) AS COUNT
+  COALESCE((SELECT STDDEV_SAMP(answer)
    FROM super_answers
-   WHERE answer >= 7
+   WHERE form_id = totl.form_id
+     AND field_name = totl.field_name
+     AND data_type_hint='number'
+     AND DATE(submitted) <= date
+   GROUP BY form_id,
+            field_name),0) AS answer_cumulative_stddeviation,
+
+
+
+       (COALESCE(prom.count,0) / COALESCE(totl.count,0))-(COALESCE(detr.count,0) / COALESCE(totl.count,0)) AS NPS_ofdate,
+       COALESCE(detr.count,0) AS detractors,
+       COALESCE(pass.count,0) AS passives,
+       COALESCE(prom.count,0) AS promoters,
+       COALESCE(totl.count,0) AS total,
+
+
+  COALESCE((SELECT COUNT(answer)
+   FROM super_answers
+   WHERE form_id = totl.form_id
+     AND field_name = totl.field_name
+     AND data_type_hint='number'
+     AND answer <= 6
+     AND DATE(submitted) <= date
+   GROUP BY form_id,
+            field_name),0) AS detr_cumulative_count,
+
+  COALESCE((SELECT COUNT(answer)
+   FROM super_answers
+   WHERE form_id = totl.form_id
+     AND field_name = totl.field_name
+     AND data_type_hint='number'
+     AND answer >= 7
      AND answer <= 8
-     AND data_type_hint='number'
+     AND DATE(submitted) <= date
    GROUP BY form_id,
-            field_name,
-            DATE(submitted)) AS pass,
+            field_name),0) AS pass_cumulative_count,
 
-  (SELECT form_id,
-          field_name,
-          DATE(submitted) AS date_tag,
-          COUNT(answer) AS COUNT
+  COALESCE((SELECT COUNT(answer)
    FROM super_answers
-   WHERE answer >= 9
+   WHERE form_id = totl.form_id
+     AND field_name = totl.field_name
      AND data_type_hint='number'
+     AND answer >= 9
+     AND DATE(submitted) <= date
    GROUP BY form_id,
-            field_name,
-            DATE(submitted)) AS prom,
+            field_name),0) AS prom_cumulative_count,
+
+  COALESCE((SELECT COUNT(answer)
+   FROM super_answers
+   WHERE form_id = totl.form_id
+     AND field_name = totl.field_name
+     AND data_type_hint='number'
+     AND DATE(submitted) <= date
+   GROUP BY form_id,
+            field_name),0) AS totl_cumulative_count
+
+
+
+
+
+FROM
+       form_items AS f
+
+LEFT OUTER JOIN
 
   (SELECT form_id,
           field_name,
@@ -392,21 +402,61 @@ FROM
           form_title,
           field_title,
           TYPE,
-          COUNT(answer) AS COUNT
+          COUNT(answer) AS count
    FROM super_answers
    WHERE data_type_hint='number'
    GROUP BY form_id,
             field_name,
             DATE(submitted)) AS totl
-WHERE detr.form_id = pass.form_id
-  AND pass.form_id = prom.form_id
-  AND prom.form_id = totl.form_id
-  AND detr.field_name = pass.field_name
-  AND pass.field_name = prom.field_name
-  AND prom.field_name = totl.field_name
-  AND detr.date_tag = pass.date_tag
-  AND pass.date_tag = prom.date_tag
-  AND prom.date_tag = totl.date_tag
+
+ON f.form=totl.form_id AND f.name=totl.field_name
+
+LEFT OUTER JOIN
+
+  (SELECT form_id,
+          field_name,
+          DATE(submitted) AS date_tag,
+          COUNT(answer) AS count
+   FROM super_answers
+   WHERE data_type_hint='number'
+     AND answer <= 6
+   GROUP BY form_id,
+            field_name,
+            DATE(submitted)) AS detr
+
+USING (form_id, field_name, date_tag)
+
+LEFT OUTER JOIN
+
+  (SELECT form_id,
+          field_name,
+          DATE(submitted) AS date_tag,
+          COUNT(answer) AS COUNT
+   FROM super_answers
+   WHERE data_type_hint='number'
+     AND answer >= 7
+     AND answer <= 8
+   GROUP BY form_id,
+            field_name,
+            DATE(submitted)) AS pass
+
+USING (form_id, field_name, date_tag)
+
+LEFT OUTER JOIN
+
+  (SELECT form_id,
+          field_name,
+          DATE(submitted) AS date_tag,
+          COUNT(answer) AS COUNT
+   FROM super_answers
+   WHERE data_type_hint='number'
+     AND answer >= 9
+   GROUP BY form_id,
+            field_name,
+            DATE(submitted)) AS prom
+
+USING (form_id, field_name, date_tag)
+
 ORDER BY date;
 
 SET SQL_MODE=@OLD_SQL_MODE;
