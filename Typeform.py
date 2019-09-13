@@ -148,9 +148,9 @@ class TypeformSync:
         try:
             self.response=requests.get(self.formListURL.format(page=1),
                                   headers=self.typeformHeader).json()
-        except requests.exceptions.RequestException as error:
+        except:
             self.logger.error('Error trying to get forms.', exc_info=True)
-            raise error
+            raise
 
         for f in self.response['items']:
             form={}
@@ -457,7 +457,8 @@ def prepareLogging(level=logging.INFO):
     # Switch between INFO/DEBUG while running in production/developping:
     logging.getLogger('Typeform').setLevel(level)
     logging.getLogger('Typeform.TypeformSync').setLevel(level)
-    logging.getLogger('urllib3.connectionpool').setLevel(logging.WARNING)
+    logging.getLogger('requests.packages.urllib3').setLevel(logging.WARNING)
+    logging.getLogger('requests.packages.urllib3').propagate=True
     logging.captureWarnings(True)
     
     if level == logging.DEBUG:
