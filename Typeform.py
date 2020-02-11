@@ -49,7 +49,7 @@ class TypeformSync:
     db=None
     lastSync=None
     dbWriteChunckSize=3000 # records
-
+    tablePrefix=None
     
     # DataFrames for updated tables of entities to be synced
     forms=None
@@ -62,9 +62,10 @@ class TypeformSync:
     logger=None
 
     
-    def __init__(self,token=None,dburl=None,restart=False,dbupdate=True):
+    def __init__(self,token=None,dburl=None,restart=False,dbupdate=True,tableprefix=None):
         self.token=token
         self.dbURL=dburl
+        self.tablePrefix=tableprefix
         
         if __name__ == '__main__':
             self.logger=logging.getLogger('Typeform.TypeformSync')
@@ -93,7 +94,7 @@ class TypeformSync:
         if self.restart:
             self.lastSync = None
         else:
-            options=pd.read_sql("SELECT * FROM options;", self.db)
+            options=pd.read_sql(f"SELECT * FROM {self.tablePrefix}options;", self.db)
             self.lastSync = options[options.name=='typeform_last']['value'].values[0]
 
         if self.lastSync != None:
@@ -107,10 +108,11 @@ class TypeformSync:
         lastData=self.responses['landed'].sort_values(ascending=False).head(1)[0]
 
         # Set last sync date
-        self.db.execute("UPDATE options SET value='{}' WHERE name='typeform_last'".format(lastData))
+        self.db.execute(f"UPDATE {self.tablePrefix}options SET value='{}' WHERE name='typeform_last'".format(lastData))
 
         # Update the sync log
-        self.db.execute("INSERT INTO synclog (timestamp,forms,form_items,responses,answers) VALUES (UTC_TIMESTAMP(),{},{},{},{})".format(
+        self.db.execute("INSERT INTO {}synclog (timestamp,forms,form_items,responses,answers) VALUES (UTC_TIMESTAMP(),{},{},{},{})".format(
+            self.tablePrefix,
             self.forms.shape[0],
             self.formItems.shape[0],
             self.responses.shape[0],
@@ -123,11 +125,11 @@ class TypeformSync:
             
             self.logger.debug('Update nps_daily_mv materialized view…')
 
-            self.db.execute("DROP TABLE IF EXISTS nps_daily_mv2;")
-            self.db.execute("CREATE TABLE nps_daily_mv2 AS SELECT * FROM nps_daily;")
+            self.db.execute(f"DROP TABLE IF EXISTS {self.tablePrefix}nps_daily_mv2;")
+            self.db.execute(f"CREATE TABLE {self.tablePrefix}nps_daily_mv2 AS SELECT * FROM {self.tablePrefix}nps_daily;")
                             
-            self.db.execute("DROP TABLE IF EXISTS nps_daily_mv;")
-            self.db.execute("RENAME TABLE nps_daily_mv2 TO nps_daily_mv;")
+            self.db.execute(f"DROP TABLE IF EXISTS {self.tablePrefix}nps_daily_mv;")
+            self.db.execute(f"RENAME TABLE {self.tablePrefix}nps_daily_mv2 TO {self.tablePrefix}nps_daily_mv;")
 
         
                 
@@ -400,9 +402,9 @@ class TypeformSync:
                 
                 # Pandas plain to_sql() doesn't take care of correct column data type,
                 # so we have to inherit from target table like this:
-                self.db.execute('DROP TABLE IF EXISTS {temp};'.format(temp=e['temp'],target=e['table']))
-                self.db.execute('CREATE TABLE {temp} AS SELECT * FROM {target} LIMIT 1;'.format(temp=e['temp'],target=e['table']))
-                self.db.execute('TRUNCATE TABLE {temp};'.format(temp=e['temp'],target=e['table']))
+                self.db.execute('DROP TABLE IF EXISTS {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
+                self.db.execute('CREATE TABLE {prefix}{temp} AS SELECT * FROM {prefix}{target} LIMIT 1;'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
+                self.db.execute('TRUNCATE TABLE {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
 
                 if self.__dict__[e['df']].shape[0] > 1.25*self.dbWriteChunckSize:
                     for chunk in range(0,math.ceil(self.__dict__[e['df']].shape[0]/self.dbWriteChunckSize)):
@@ -412,7 +414,7 @@ class TypeformSync:
                             end=(chunk+1)*self.dbWriteChunckSize
                         ))
                         self.__dict__[e['df']][chunk*self.dbWriteChunckSize:(chunk+1)*self.dbWriteChunckSize].reset_index().to_sql(
-                            name=e['temp'],
+                            name=self.tablePrefix + e['temp'],
                             index=False,
     #                         dtype=blobs,
     #                         method=None,
@@ -421,7 +423,7 @@ class TypeformSync:
                         )
                 else:
                     self.__dict__[e['df']].reset_index().to_sql(
-                        name=e['temp'],
+                        name=self.tablePrefix + e['temp'],
                         index=False,
     #                     dtype=blobs,
     #                     method=None,
@@ -434,7 +436,7 @@ class TypeformSync:
 
 
 
-            self.db.execute('REPLACE INTO {target} (SELECT * FROM {temp}); DROP TABLE {temp};'.format(temp=e['temp'],target=e['table']))
+            self.db.execute('REPLACE INTO {prefix}{target} (SELECT * FROM {prefix}{temp}); DROP TABLE {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
         
 
     def sync(self):
@@ -466,7 +468,8 @@ def prepareLogging(level=logging.INFO):
         logging.getLogger().addHandler(logging.StreamHandler())
 
     # Send messages to Syslog:
-    logging.getLogger().addHandler(logging.handlers.SysLogHandler(address='/dev/log'))
+    #logging.getLogger().addHandler(logging.handlers.SysLogHandler(address='/dev/log'))
+    logging.getLogger().addHandler(logging.handlers.SysLogHandler())
     
     
 def prepareArgs():
@@ -474,6 +477,9 @@ def prepareArgs():
     
     parser.add_argument('--database', '--db', dest='database', nargs=1,
                         help='Destination database URL as «mysql://user:pass@host.com/dbname?charset=utf8mb4»')
+    
+    parser.add_argument('--tableprefix', '--prefix', dest='tableprefix', nargs=1,
+                        help='A string to prefix every table name with, such as "tf_"')
     
     parser.add_argument('--updatedb', '-u', dest='dbupdate', default=True, action='store_false',
                         help='Get updates from Typeform but do not update database')    
@@ -527,7 +533,8 @@ def main():
         token=context['typeform_token'],
         dburl=context['database'],
         restart=context['restart'],
-        dbupdate=context['dbupdate']
+        dbupdate=context['dbupdate'],
+        tableprefix=context['tableprefix']
     )
     
     

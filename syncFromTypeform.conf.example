@@ -3,3 +3,6 @@ typeform_token='4H................Mz'
 
 # Database URL
 database='mysql://user:password@database.com/schemaname?charset=utf8'
+
+# Prefix for all table names
+tableprefix='tf_'
