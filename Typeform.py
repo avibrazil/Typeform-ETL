@@ -49,7 +49,7 @@ class TypeformSync:
     db=None
     lastSync=None
     dbWriteChunckSize=3000 # records
-    tablePrefix=None
+    tablePrefix=''
     
     # DataFrames for updated tables of entities to be synced
     forms=None
@@ -62,7 +62,7 @@ class TypeformSync:
     logger=None
 
     
-    def __init__(self,token=None,dburl=None,restart=False,dbupdate=True,tableprefix=None):
+    def __init__(self,token=None,dburl=None,restart=False,dbupdate=True,tableprefix=''):
         self.token=token
         self.dbURL=dburl
         self.tablePrefix=tableprefix
@@ -108,7 +108,7 @@ class TypeformSync:
         lastData=self.responses['landed'].sort_values(ascending=False).head(1)[0]
 
         # Set last sync date
-        self.db.execute(f"UPDATE {self.tablePrefix}options SET value='{}' WHERE name='typeform_last'".format(lastData))
+        self.db.execute("UPDATE {prefix}options SET value='{last}' WHERE name='typeform_last'".format(last=lastData,prefix=self.tablePrefix))
 
         # Update the sync log
         self.db.execute("INSERT INTO {}synclog (timestamp,forms,form_items,responses,answers) VALUES (UTC_TIMESTAMP(),{},{},{},{})".format(
@@ -125,11 +125,11 @@ class TypeformSync:
             
             self.logger.debug('Update nps_daily_mv materialized view…')
 
-            self.db.execute(f"DROP TABLE IF EXISTS {self.tablePrefix}nps_daily_mv2;")
-            self.db.execute(f"CREATE TABLE {self.tablePrefix}nps_daily_mv2 AS SELECT * FROM {self.tablePrefix}nps_daily;")
+#            self.db.execute(f"DROP TABLE IF EXISTS {self.tablePrefix}nps_daily_mv2;")
+#            self.db.execute(f"CREATE TABLE {self.tablePrefix}nps_daily_mv2 AS SELECT * FROM {self.tablePrefix}nps_daily;")
                             
-            self.db.execute(f"DROP TABLE IF EXISTS {self.tablePrefix}nps_daily_mv;")
-            self.db.execute(f"RENAME TABLE {self.tablePrefix}nps_daily_mv2 TO {self.tablePrefix}nps_daily_mv;")
+#            self.db.execute(f"DROP TABLE IF EXISTS {self.tablePrefix}nps_daily_mv;")
+#            self.db.execute(f"RENAME TABLE {self.tablePrefix}nps_daily_mv2 TO {self.tablePrefix}nps_daily_mv;")
 
         
                 
@@ -396,19 +396,30 @@ class TypeformSync:
         ]
         
         for e in comb:
-            self.logger.debug('Writting «{df}» dataframe updates to «{table}» table in DB'.format(df=e['df'],table=e['table']))
+            self.logger.debug('Writting «{df}» dataframe updates to «{prefix}{table}» table in DB'.format(
+                df=e['df'],
+                table=e['table'],
+                prefix=self.tablePrefix)
+            )
 
             try:
                 
-                # Pandas plain to_sql() doesn't take care of correct column data type,
+                # Pandas plain to_sql() doesn't take care of correct columns data types,
                 # so we have to inherit from target table like this:
-                self.db.execute('DROP TABLE IF EXISTS {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
-                self.db.execute('CREATE TABLE {prefix}{temp} AS SELECT * FROM {prefix}{target} LIMIT 1;'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
-                self.db.execute('TRUNCATE TABLE {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
+                
+                prepTemp='''
+                    DROP TABLE IF EXISTS {prefix}{temp};
+                    CREATE TABLE {prefix}{temp} AS SELECT * FROM {prefix}{target} LIMIT 1;
+                    TRUNCATE TABLE {prefix}{temp};
+                '''.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix)
+                
+                self.logger.debug('    Preparing temporary table with: {}'.format(prepTemp))
+
+                self.db.execute(prepTemp)
 
                 if self.__dict__[e['df']].shape[0] > 1.25*self.dbWriteChunckSize:
                     for chunk in range(0,math.ceil(self.__dict__[e['df']].shape[0]/self.dbWriteChunckSize)):
-                        self.logger.debug('Writting «{df}» to DB: [{start}:{end})'.format(
+                        self.logger.debug('    Writting «{df}» to DB: [{start}:{end}]'.format(
                             df=e['df'],
                             start=chunk*self.dbWriteChunckSize,
                             end=(chunk+1)*self.dbWriteChunckSize
@@ -422,6 +433,7 @@ class TypeformSync:
                             con=self.db
                         )
                 else:
+                    self.logger.debug('    Writting «{df}» to DB: [integral]'.format(df=e['df']))
                     self.__dict__[e['df']].reset_index().to_sql(
                         name=self.tablePrefix + e['temp'],
                         index=False,
@@ -434,9 +446,10 @@ class TypeformSync:
                 self.logger.error('Error writting temporary table to database.', exc_info=True)
                 raise e
 
-
-
-            self.db.execute('REPLACE INTO {prefix}{target} (SELECT * FROM {prefix}{temp}); DROP TABLE {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
+            self.db.execute('''
+                REPLACE INTO {prefix}{target} (SELECT * FROM {prefix}{temp});
+                DROP TABLE {prefix}{temp};
+            '''.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
         
 
     def sync(self):
@@ -512,6 +525,9 @@ def main():
 
     if args.typeform_token is None:
         args.typeform_token=context['typeform_token']
+    
+    if args.tableprefix is None:
+        args.tableprefix=context['tableprefix']
     
 
     
