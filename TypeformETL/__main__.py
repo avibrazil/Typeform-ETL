@@ -1,4 +1,4 @@
-import TypeformETL
+from . import TypeformETL
 import logging.handlers
 import logging
 from configobj import ConfigObj    # dnf install python3-configobj
