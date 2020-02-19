@@ -24,6 +24,8 @@ This is the connector that works with SQLAlchemy (used by the module). Other con
 python3 -m TypeformETL --typeform "6w___API_KEY___nPZ" --database 'mysql://user:password@host/dbname'
 ```
 
+Add `--restart` to get and sync all data from Typeform, not just last updates.
+
 Add `--updatedb` to do everything but update database.
 
 Add `--debug` to be more verbose.
