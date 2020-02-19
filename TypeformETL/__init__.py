@@ -35,7 +35,7 @@ import argparse
 
 module_logger = logging.getLogger(__name__)
 
-class TypeformSync:
+class TypeformETL:
     
     # API paremeters
     workspaceListURL='https://api.typeform.com/workspaces'
@@ -531,7 +531,7 @@ def main():
 
 
     # Prepare syncing machine
-    tf = TypeformSync(
+    tf = TypeformETL(
         token=context['typeform_token'],
         dburl=context['database'],
         restart=context['restart'],
