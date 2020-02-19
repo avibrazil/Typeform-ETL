@@ -8,24 +8,36 @@ A python class and main function to extract and continuously sync data from a Ty
 pip3 install TypeformETL --user
 ```
 
+If your database is MySQL or MariaDB:
+
+```shell
+pip3 install mysqlclient --user
+```
+
+This is the connector that works with SQLAlchemy (used by the module). Other connectors as PyMySQL failed our tests.
+
 ## Usage
+
+### With plain command line
+
+```shell
+python3 -m TypeformETL --typeform "6w___API_KEY___nPZ" --database 'mysql://user:password@host/dbname'
+```
+
+Add `--updatedb` to do everything but update database.
+
+Add `--debug` to be more verbose.
 
 ### With CRON
 
 I have these 2 entries at the same time on my crontab:
 
 ```shell
-@hourly cd /home/aviram/src/Typeform-ETL && ./Typeform.py
-30 3 * * 0 cd /home/aviram/src/Typeform-ETL && ./Typeform.py --restart
+@hourly python3 -m TypeformETL --typeform "6w___API_KEY___nPZ" --database 'mysql://user:password@host/dbname'
+30 3 * * 0 python3 -m TypeformETL --typeform "6w___API_KEY___nPZ" --database 'mysql://user:password@host/dbname' --restart
 ```
 
 Which will run a sync every hour. And once a week will reset data tables and bring all data from scratch.
-
-### With plain command line
-
-```shell
-
-```
 
 ### Into a Python program
 
