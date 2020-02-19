@@ -90,8 +90,8 @@ Having “`tf_`” as a table prefix, these are the objects (tables and views) t
 |-------------------|------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | table             | `tf_forms`         | Contains metadata about forms                                                                                                             |
 | table             | `tf_form_items`    | Contains metadata about form items (text fields, checkboxes) related to their parent forms                                                |
-| table             | `tf_answers`       | Contains all answers to all fields of all forms                                                                                           |
-| table             | `tf_responses`     | Contains all responses to all forms; each form response has an entry here, each form field answer has an entry in the `tf_answers` table. |
+| table             | `tf_answers`       | Contains all answers to all fields of all forms; each complete form response has an entry in the `tf_responses` table.                                                                                           |
+| table             | `tf_responses`     | Contains all responses and metadata to all forms; each form **response** has an entry here, each form field **answer** has an entry in the `tf_answers` table. |
 | table             | `tf_options`       | Operational table used by the syncer                                                                                                      |
 | table             | `tf_synclog`       | Operational table that logs every sync with some simple statistics                                                                        |
 | view              | `tf_super_answers` | A convenient view that joins together table `tf_answers`, `tf_responses`, `tf_form_items`, `tf_forms`                                     |
