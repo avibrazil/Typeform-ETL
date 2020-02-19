@@ -4,17 +4,32 @@ A python class and main function to extract and continuously sync data from a Ty
 
 ## Installation
 
+### Requirements
+
+You should prefer Python 3 packages from your operating system.
+
+So under Fedora Linux:
+
+```shell
+dnf install python3-requests python3-sqlalchemy python3-pandas python3-configobj python3-mysql
+```
+Under Red Hat Enterprise Linux 8:
+
+```shell
+dnf install python3-requests python3-sqlalchemy python3-configobj mariadb-connector-c-devel mariadb-connector-c gcc
+pip3 install mysqlclient --user
+```
+This MariaDB connector is the one that works with SQLAlchemy (used by the module). Other connectors as PyMySQL failed our tests.
+
+Installing `mysqlclient` with `pip` requires compilers and MariaDB development framework pre-installed in the system, as shown in the Red Hat Enterprise Linux section.
+
+### Install the module
+
 ```shell
 pip3 install TypeformETL --user
 ```
 
-If your database is MySQL or MariaDB:
-
-```shell
-pip3 install mysqlclient --user
-```
-
-This is the connector that works with SQLAlchemy (used by the module). Other connectors as PyMySQL failed our tests.
+All unsatisfied dependencies (such as Pandas on RHEL) will be installed along.
 
 ## Usage
 
