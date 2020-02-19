@@ -30,6 +30,13 @@ Add `--updatedb` to do everything but update database.
 
 Add `--debug` to be more verbose.
 
+### Config file
+
+If you want to not pass arguments through command line, you can also use a config file.
+Use `--config` to pass a config file name. By default, the main module will look for a file name called `syncFromTypeform.conf` in the current directory.
+Arguments from config file and command line will be combined giving priority to the ones passed in command line.
+So if a database URL is passed both in command line and config file, the command line will be used.
+
 ### With CRON
 
 I have these 2 entries at the same time on my crontab:
