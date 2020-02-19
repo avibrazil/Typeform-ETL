@@ -5,7 +5,7 @@ A python class and main function to extract and continuously sync data from a Ty
 ## Installation
 
 ```shell
-pip3 install Typeform --user
+pip3 install TypeformETL --user
 ```
 
 ## Usage
@@ -30,7 +30,7 @@ Which will run a sync every hour. And once a week will reset data tables and bri
 ### Into a Python program
 
 ```python
-from Typeform import TypeformSync
+from TypeformETL import TypeformETL
 
 tf = TypeformSync(
 	token=context['typeform_token'],

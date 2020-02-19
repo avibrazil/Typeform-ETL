@@ -12,7 +12,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/avibrazil/Typeform-ETL",
-    install_requires=['sqlalchemy','pandas','requests','configobj','argparse','json','hashlib'],
+    install_requires=['sqlalchemy','pandas','requests','configobj','argparse','json'],
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
