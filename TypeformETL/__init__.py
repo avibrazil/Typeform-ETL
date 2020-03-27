@@ -281,13 +281,18 @@ class TypeformETL:
 
 
                     for i in responseSet['items']:
+#                         self.logger.debug(f"working on: {i}")
+
                         meta = {}
                         meta['id']          = i['response_id']
                         meta['form']        = form
                         meta['landed']      = dateparser.parse(i['landed_at']).replace(tzinfo=None)
-                        meta['submitted']   = dateparser.parse(i['submitted_at']).replace(tzinfo=None)
                         meta['agent']       = i['metadata']['user_agent']
                         meta['referer']     = i['metadata']['referer']
+
+                        if 'submitted_at' in i:
+                            # apparently became an optional parameter in 2020-03-02
+                            meta['submitted'] = dateparser.parse(i['submitted_at']).replace(tzinfo=None)
 
                         metas.append(meta)
 
@@ -313,7 +318,8 @@ class TypeformETL:
 
 
                         # Handle all regular fields of response
-                        if 'answers' in i.keys():
+                        if 'answers' in i.keys() and i['answers'] is not None:
+                            # apparently content into 'ansewrs' became optional in 2020-03-02
                             for field in i['answers']:
             #                     print(f'\t{field}')
                                 idCalc=hashlib.new('shake_256')
@@ -361,7 +367,7 @@ class TypeformETL:
         self.answers.set_index('id',inplace=True)
         
         # Sort answers by reponses’ «landed» time
-        self.answers['response']=pd.Categorical(self.answers['response'],self.responses.sort_values(by='landed').index)
+#         self.answers['response']=pd.Categorical(self.answers['response'],self.responses.sort_values(by='landed').index)
         self.answers.sort_values(by='response', inplace=True)
         del answers    
     

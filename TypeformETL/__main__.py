@@ -63,20 +63,17 @@ def main():
     if args.typeform_token is None:
         args.typeform_token=context['typeform_token']
     
-
-    
     # Merge configuration file parameters with command line arguments
     context.update(vars(args))
     
     # print(context)
     
-    # Setup logging
+    
     if context['debug']:
         prepareLogging(logging.DEBUG)
     else:
         prepareLogging()
     
-
 
     # Prepare syncing machine
     tf = TypeformETL(
