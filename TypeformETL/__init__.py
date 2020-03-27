@@ -246,6 +246,7 @@ class TypeformETL:
         for form in self.forms.index:
             for completed in [True,False]:
                 completed=str(completed).lower()
+        
                 self.response=None
                 try:
                     self.logger.debug('Requesting response statistics for form «{}», submitted={}…'.format(form,completed))
@@ -254,8 +255,8 @@ class TypeformETL:
                                                                        completed=completed,
                                                                        since=self.lastSync.isoformat()),
                                            headers=self.typeformHeader).json()
-                    
-                    
+
+
                     #self.logger.debug('Form «{}», submitted={}, looks like: {}'.format(form,completed,str(self.response)[:150]))
 
                 except requests.exceptions.RequestException as error:
@@ -269,11 +270,12 @@ class TypeformETL:
 
                 for page in range(1,number_of_pages_of_1000_responses+1):
                     try:
-                        self.logger.debug('Requesting responses for form «{}», submitted={}…'.format(form,completed))
-
                         responseSet=requests.get(self.respListURL.format(id=form, psize=1000, page=page, completed=completed,
                                                                         since=self.lastSync.isoformat()),
                                                 headers=self.typeformHeader).json()
+
+                        self.logger.debug('Requesting responses for form «{}»: {} answers'.format(form,responseSet['total_items']))
+
                     except requests.exceptions.RequestException as error:
                         self.logger.error('Error trying to get response details for form «{}»'.format(form), exc_info=True)
                         raise error
@@ -281,7 +283,7 @@ class TypeformETL:
 
 
                     for i in responseSet['items']:
-#                         self.logger.debug(f"working on: {i}")
+    #                         self.logger.debug(f"working on: {i}")
 
                         meta = {}
                         meta['id']          = i['response_id']
@@ -318,38 +320,42 @@ class TypeformETL:
 
 
                         # Handle all regular fields of response
-                        if 'answers' in i.keys() and i['answers'] is not None:
+                        if 'answers' in i.keys():
                             # apparently content into 'ansewrs' became optional in 2020-03-02
-                            for field in i['answers']:
-            #                     print(f'\t{field}')
-                                idCalc=hashlib.new('shake_256')
-                                idCalc.update('{}{}{}'.format(form,meta['id'],field['field']['id']).encode('UTF-8'))
+                            if i['answers'] is None:
+                                # Flag submitted as Null if there are no answers
+                                meta['submitted'] = None
+                            else:
+                                for field in i['answers']:
+                #                     print(f'\t{field}')
+                                    idCalc=hashlib.new('shake_256')
+                                    idCalc.update('{}{}{}'.format(form,meta['id'],field['field']['id']).encode('UTF-8'))
 
-                                answer = {}
-                                answer['id']       =  idCalc.hexdigest(5)
-                                answer['response'] =  meta['id']
-                                answer['form']     =  form
-                                answer['field']    =  field['field']['id']
-                                answer['data_type_hint'] = field['type']
+                                    answer = {}
+                                    answer['id']       =  idCalc.hexdigest(5)
+                                    answer['response'] =  meta['id']
+                                    answer['form']     =  form
+                                    answer['field']    =  field['field']['id']
+                                    answer['data_type_hint'] = field['type']
 
 
-                                # Handle multichoice fields
-                                if field['type'] == 'choices':
-                                    # Handle multi-choice fields: concatenate with `|` as separator
-                                    answer['answer'] = []
-                                    for k in field[field['type']].keys():
-                                        for a in field[field['type']][k]:
-                                            answer['answer'].append(a)
-                                    answer['answer'] = '|'.join(answer['answer'])
-                                elif field['type'] == 'choice':
-                                    # Handle single-choice fields
-                                    for k in field[field['type']].keys():
-                                        answer['answer']=field[field['type']][k]
-                                else:
-                                    # Default: just get the content, always as a string
-                                    answer['answer'] = str(field[field['type']])
+                                    # Handle multichoice fields
+                                    if field['type'] == 'choices':
+                                        # Handle multi-choice fields: concatenate with `|` as separator
+                                        answer['answer'] = []
+                                        for k in field[field['type']].keys():
+                                            for a in field[field['type']][k]:
+                                                answer['answer'].append(a)
+                                        answer['answer'] = '|'.join(answer['answer'])
+                                    elif field['type'] == 'choice':
+                                        # Handle single-choice fields
+                                        for k in field[field['type']].keys():
+                                            answer['answer']=field[field['type']][k]
+                                    else:
+                                        # Default: just get the content, always as a string
+                                        answer['answer'] = str(field[field['type']])
 
-                                answers.append(answer)
+                                    answers.append(answer)
 
 
         self.responses=pd.DataFrame(columns=metaColumns)
