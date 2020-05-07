@@ -96,8 +96,75 @@ Having “`tf_`” as a table prefix, these are the objects (tables and views) t
 | table             | `tf_synclog`       | Operational table that logs every sync with some simple statistics                                                                        |
 | view              | `tf_super_answers` | A convenient view that joins together table `tf_answers`, `tf_responses`, `tf_form_items`, `tf_forms`                                     |
 | view              | `tf_nps`           | The calculated current [NPS (Net Promoter Score)](https://en.wikipedia.org/wiki/Net_Promoter) of all numerical fields (only a few fields might have a real NPS semantic)                |
-| materialized view | `tf_nps_daily_mv`  | Since `tf_nps_daily` takes a long time to be calculated, this table has a pre-calculated copy of its data. Use it instead of `tf_nps_daily`    |
 | view              | `tf_nps_daily`     | The NPS of all numerical fields per day; can be used to see evolution of some NPS along time.                                             |
-| view              | `tf__nps_daily`    | Auxiliary view used to calculate cumulative NPS                                                                                           |
+| view              | `tf_nps_daily_mv`  | A backwards compatible name for the `tf_nps_daily` view    |
 
 The module makes `INSERT`, `UPDATE`, `CREATE TABLE`, `DROP TABLE`, `TRUNCATE` operations. Make sure the database connection user has granted permission to all these operations.
+
+## Net Promoter Score
+
+A common use of Typeform service is to measure user satisfaction through questions like “From 0 to 10, what is the chance of recommending this web site/app/service to a friend?”.
+
+Once all answers are structured in a database its easy to calculate, from answers to a specific form field, both current NPS and NPS evolution as time series.
+
+SQL views `tf_nps` and `tf_nps_daily` respectively will deliver this information. The `tf_nps_daily` is quite advanced and only possible (in one view) when using advanced SQL Window functions:
+
+```sql
+create view tf_nps_daily as 
+select
+	a.form as form_id,
+	fi.name as field_name,
+	r.submitted as date,
+	fi.type as type,
+	f.title as form_title,
+	fi.title as field_title,
+ 	((count(case when a.answer>=9 then 1 else NULL end) over day)-(count(case when a.answer<7 then 1 else NULL end) over day))/(count(a.answer) over day) as NPS_ofdate,
+	count(case when a.answer<7 then 1 else NULL end) over day as detractors,
+	count(case when a.answer between 7 and 8 then 1 else NULL end) over day as passives,
+	count(case when a.answer>=9 then 1 else NULL end) over day as promoters,
+	count(a.answer) over day as total,
+	
+    ((count(case when a.answer>=9 then 1 else NULL end) over untilday)-(count(case when a.answer<7 then 1 else NULL end) over untilday))/(count(a.answer) over untilday) as NPS_cumulative,
+	count(case when a.answer<7 then 1 else NULL end) over untilday as detr_cumulative,
+	count(case when a.answer between 7 and 8 then 1 else NULL end) over untilday as pass_cumulative,
+	count(case when a.answer>=9 then 1 else NULL end) over untilday as prom_cumulative,
+	count(a.answer) over untilday as totl_cumulative
+from
+	tf_answers a,
+	tf_responses r,
+	tf_form_items fi,
+	tf_forms f
+where
+	a.data_type_hint in ('number')
+	and r.submitted is not NULL
+	and r.id = a.response
+	and fi.id = a.field
+	and fi.form = a.form
+	and f.id = a.form
+window
+	day as (partition by date(r.submitted), a.form, a.field),
+	untilday as (partition by a.form, a.field order by r.submitted asc rows unbounded preceding)
+order by
+	a.form, a.field, r.submitted asc
+```
+
+Once set, you can query the NPS for a specific field as a time series like this:
+
+```sql
+SELECT * FROM tf_nps_daily WHERE form_id='to6xfp' AND field_name='353eb07c-15bf-4669-9793-9c0ec33f818a'
+```
+
+Resulting data, when graphed, looks like this:
+
+
+
+
+
+
+
+
+
+
+
+
+

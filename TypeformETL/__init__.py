@@ -118,17 +118,22 @@ class TypeformETL:
             self.answers.shape[0]
         ))
         
-        # Update the daily NPS materialized view
-        if self.answers.shape[0] > 0:
-            # This is a heavy task, so only if we have new answers
-            
-            self.logger.debug('Update nps_daily_mv materialized view…')
-
-            self.db.execute(f"DROP TABLE IF EXISTS {self.tablePrefix}nps_daily_mv2;")
-            self.db.execute(f"CREATE TABLE {self.tablePrefix}nps_daily_mv2 AS SELECT * FROM {self.tablePrefix}nps_daily;")
-                            
-            self.db.execute(f"DROP TABLE IF EXISTS {self.tablePrefix}nps_daily_mv;")
-            self.db.execute(f"RENAME TABLE {self.tablePrefix}nps_daily_mv2 TO {self.tablePrefix}nps_daily_mv;")
+#        # Update the daily NPS materialized view
+#        if self.answers.shape[0] > 0:
+#            # This is a heavy task, so only if we have new answers
+#            
+#            self.logger.debug('Update nps_daily_mv materialized view…')
+#
+##             DROP TABLE IF EXISTS tf_nps_daily_mv2;
+##             CREATE TABLE tf_nps_daily_mv2 AS SELECT * FROM tf_nps_daily;
+##             DROP TABLE IF EXISTS tf_nps_daily_mv;
+##             RENAME TABLE tf_nps_daily_mv2 TO tf_nps_daily_mv;
+#            
+#            self.db.execute(f"DROP TABLE IF EXISTS {self.tablePrefix}nps_daily_mv2;")
+#            self.db.execute(f"CREATE TABLE {self.tablePrefix}nps_daily_mv2 AS SELECT * FROM {self.tablePrefix}nps_daily;")
+#                            
+#            self.db.execute(f"DROP TABLE IF EXISTS {self.tablePrefix}nps_daily_mv;")
+#            self.db.execute(f"RENAME TABLE {self.tablePrefix}nps_daily_mv2 TO {self.tablePrefix}nps_daily_mv;")
 
         
                 
