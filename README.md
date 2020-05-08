@@ -154,8 +154,7 @@ order by
 The `tf_nps` view is simpler:
 
 ```sql
-CREATE OR REPLACE
-ALGORITHM = UNDEFINED VIEW `tf_nps` AS
+CREATE OR REPLACE VIEW tf_nps AS
 select
 	a.form as form_id,
 	fi.name as field_name,
