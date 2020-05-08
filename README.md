@@ -120,13 +120,14 @@ select
 	fi.type as type,
 	f.title as form_title,
 	fi.title as field_title,
+	
  	((count(case when a.answer>=9 then 1 else NULL end) over day)-(count(case when a.answer<7 then 1 else NULL end) over day))/(count(a.answer) over day) as NPS_ofdate,
 	count(case when a.answer<7 then 1 else NULL end) over day as detractors,
 	count(case when a.answer between 7 and 8 then 1 else NULL end) over day as passives,
 	count(case when a.answer>=9 then 1 else NULL end) over day as promoters,
 	count(a.answer) over day as total,
 	
-    ((count(case when a.answer>=9 then 1 else NULL end) over untilday)-(count(case when a.answer<7 then 1 else NULL end) over untilday))/(count(a.answer) over untilday) as NPS_cumulative,
+	((count(case when a.answer>=9 then 1 else NULL end) over untilday)-(count(case when a.answer<7 then 1 else NULL end) over untilday))/(count(a.answer) over untilday) as NPS_cumulative,
 	count(case when a.answer<7 then 1 else NULL end) over untilday as detr_cumulative,
 	count(case when a.answer between 7 and 8 then 1 else NULL end) over untilday as pass_cumulative,
 	count(case when a.answer>=9 then 1 else NULL end) over untilday as prom_cumulative,
