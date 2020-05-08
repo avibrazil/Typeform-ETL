@@ -54,11 +54,11 @@ So if a database URL is passed both in command line and config file, the command
 
 ### With CRON
 
-I have these 2 entries at the same time on my crontab:
+I have these 2 entries together on my crontab and then I don't need a config file:
 
 ```shell
-@hourly python3 -m TypeformETL --typeform "6w___API_KEY___nPZ" --database 'mysql://user:password@host/dbname'
-30 3 * * 0 python3 -m TypeformETL --typeform "6w___API_KEY___nPZ" --database 'mysql://user:password@host/dbname' --restart
+@hourly    python3 -m TypeformETL --typeform "___API_KEY___" --database 'mysql://user:password@host/dbname' --tableprefix 'tf_'
+30 3 * * 0 python3 -m TypeformETL --typeform "___API_KEY___" --database 'mysql://user:password@host/dbname' --tableprefix 'tf_' --restart
 ```
 
 Which will run a sync every hour. And once a week will reset data tables and bring all data from scratch.
@@ -69,11 +69,11 @@ Which will run a sync every hour. And once a week will reset data tables and bri
 from TypeformETL import TypeformETL
 
 tf = TypeformETL(
-	token=context['typeform_token'],
-	dburl=context['database'],
-	restart=context['restart'],
-	dbupdate=context['dbupdate'],
-	tableprefix=context['tableprefix']
+	token='___API_KEY___',
+	dburl='mysql://user:password@host/dbname',
+	restart=False,     # True to reset data tables and bring all data from scratch
+	dbupdate=True,     # Wether to simulate or actually write in database
+	tableprefix='tf_'  # To better organize your tables
 )
 
 
@@ -100,6 +100,8 @@ Having “`tf_`” as a table prefix, these are the objects (tables and views) t
 | view              | `tf_nps_daily_mv`  | A backwards compatible name for the `tf_nps_daily` view    |
 
 The module makes `INSERT`, `UPDATE`, `CREATE TABLE`, `DROP TABLE`, `TRUNCATE` operations. Make sure the database connection user has granted permission to all these operations.
+
+SQL definition for all these tables and views can be found in `examples/datamodel.sql`.
 
 ## Net Promoter Score
 
@@ -148,7 +150,45 @@ order by
 	a.form, a.field, r.submitted asc
 ```
 
-Once set, you can query the NPS for a specific field as a time series like this:
+The `tf_nps` view is simpler:
+
+```sql
+CREATE OR REPLACE
+ALGORITHM = UNDEFINED VIEW `tf_nps` AS
+select
+	a.form as form_id,
+	fi.name as field_name,
+	min(r.submitted) as first,
+	max(r.submitted) as last,
+	fi.type as type,
+	f.title as form_title,
+	fi.title as field_title,
+ 	((count(case when a.answer>=9 then 1 else NULL end))-(count(case when a.answer<7 then 1 else NULL end)))/(count(a.answer)) as NPS,
+	count(case when a.answer<7 then 1 else NULL end) as detractors,
+	count(case when a.answer between 7 and 8 then 1 else NULL end) as passives,
+	count(case when a.answer>=9 then 1 else NULL end) as promoters,
+	count(a.answer) as total,
+	avg(a.answer) as average,
+	std(a.answer) as std_deviation
+from
+	tf_answers a,
+	tf_responses r,
+	tf_form_items fi,
+	tf_forms f
+where
+	a.data_type_hint in ('number')
+	and r.submitted is not NULL
+	and r.id = a.response
+	and fi.id = a.field
+	and fi.form = a.form
+	and f.id = a.form
+group by
+	form_id, field_name
+order by
+	a.form, a.field, r.submitted asc
+```
+
+Once set, you can query the NPS for a specific field as a time series (`tf_nps_daily`) or its last value (`tf_nps`) like this:
 
 ```sql
 SELECT * FROM tf_nps_daily WHERE form_id='to6xfp' AND field_name='353eb07c-15bf-4669-9793-9c0ec33f818a'
