@@ -145,7 +145,7 @@ CREATE TABLE tf_synclog (
 -- View definition for tf_suseranswers
 --
 
-DROP VIEW IF EXISTS tf_super_answers ;
+DROP VIEW IF EXISTS tf_super_answers;
 CREATE OR REPLACE VIEW tf_super_answers AS
 SELECT a.id,
        r.landed,
@@ -222,8 +222,7 @@ order by
 --
 
 DROP VIEW IF EXISTS tf_nps;
-CREATE OR REPLACE
-ALGORITHM = UNDEFINED VIEW tf_nps AS
+CREATE OR REPLACE VIEW tf_nps AS
 select
 	a.form as form_id,
 	fi.name as field_name,
