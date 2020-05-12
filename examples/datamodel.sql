@@ -142,29 +142,44 @@ CREATE TABLE tf_synclog (
 
 
 --
--- View definition for tf_suseranswers
+-- View definition for tf_suser_answers
 --
 
 DROP VIEW IF EXISTS tf_super_answers;
 CREATE OR REPLACE VIEW tf_super_answers AS
-SELECT a.id,
-       r.landed,
-       r.submitted,
-       f.id AS form_id,
-       f.title AS form_title,
-       fi.name AS field_name,
-       fi.type,
-       fi.title AS field_title,
-       a.data_type_hint,
-       a.answer
-FROM tf_answers as a,
-     tf_responses as r,
-     tf_form_items as fi,
-     tf_forms as f
-WHERE f.id=fi.form
-  AND a.form=f.id
-  AND a.field=fi.id
-  AND a.response=r.id;
+with answer as (
+	select
+		answers.id AS id,
+		answers.response as response,
+		form_items.name AS field_name,
+		form_items.type AS type,
+		form_items.title AS field_title,
+		answers.data_type_hint AS data_type_hint,
+		answers.answer AS answer
+	from
+		tf_answers as answers,
+		tf_form_items as form_items
+	where
+		form_items.id = answers.field
+)
+select
+	answer.id AS id,
+	responses.id AS response_id,
+	responses.landed as landed,
+	responses.submitted AS submitted,
+	forms.id as form_id,
+	forms.title as form_title,
+	answer.field_name,
+	answer.type,
+	answer.field_title,
+	answer.data_type_hint,
+	answer.answer
+from
+	tf_responses as responses
+	join tf_forms as forms on forms.id = responses.form
+	left outer join answer on answer.response = responses.id
+
+
 
 
 
