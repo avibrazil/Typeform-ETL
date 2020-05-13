@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="TypeformETL",
-    version="0.5.12",
+    version="0.5.14",
     author="Avi Alkalay",
     author_email="avibrazil@gmail.com",
     description="Ingest all data from a Typeform account and put the data into a SQL database; can be run regularly to sync updates to DB",
@@ -13,6 +13,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/avibrazil/Typeform-ETL",
     install_requires=['sqlalchemy','pandas','requests','configobj'],
+    data_files=[('aux',['examples/datamodel.sql', 'examples/NPS Analysis.ipynb','examples/syncFromTypeform.conf.example'])],
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
