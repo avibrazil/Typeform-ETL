@@ -31,17 +31,24 @@ pip3 install TypeformETL --user
 
 All unsatisfied dependencies (such as Pandas on RHEL) will be installed along.
 
+Or, to upgrade:
+
+```shell
+pip3 install -U TypeformETL --no-deps --user
+```
+Remove the `--no-deps` if you wish to upgrade also dependent modules as pandas and numpy.
+
 ## Usage
 
 ### With plain command line
 
 ```shell
-python3 -m TypeformETL --typeform "6w___API_KEY___nPZ" --database 'mysql://user:password@host/dbname'
+python3 -m TypeformETL --typeform "___API_KEY___" --database 'mysql://user:password@host/dbname'
 ```
 
 Add `--restart` to get and sync all data from Typeform, not just last updates.
 
-Add `--updatedb` to do everything but update database.
+Add `--updatedb` to do everything except update database. Good for tests.
 
 Add `--debug` to be more verbose.
 
