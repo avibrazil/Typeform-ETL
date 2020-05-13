@@ -50,8 +50,6 @@ CREATE TABLE tf_form_items (
 --
 
 DROP TABLE IF EXISTS tf_responses;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE tf_responses (
   id tinytext NOT NULL COMMENT 'Typeform response ID',
   form tinytext CHARACTER SET ascii NOT NULL COMMENT 'Form ID that this response refers to',
@@ -205,7 +203,7 @@ select
 	count(case when a.answer>=9 then 1 else NULL end) over day as promoters,
 	count(a.answer) over day as total,
 	
-    ((count(case when a.answer>=9 then 1 else NULL end) over untilday)-(count(case when a.answer<7 then 1 else NULL end) over untilday))/(count(a.answer) over untilday) as NPS_cumulative,
+	((count(case when a.answer>=9 then 1 else NULL end) over untilday)-(count(case when a.answer<7 then 1 else NULL end) over untilday))/(count(a.answer) over untilday) as NPS_cumulative,
 	count(case when a.answer<7 then 1 else NULL end) over untilday as detr_cumulative,
 	count(case when a.answer between 7 and 8 then 1 else NULL end) over untilday as pass_cumulative,
 	count(case when a.answer>=9 then 1 else NULL end) over untilday as prom_cumulative,
