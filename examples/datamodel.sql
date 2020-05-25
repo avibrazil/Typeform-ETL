@@ -31,14 +31,19 @@ CREATE TABLE tf_forms (
 DROP TABLE IF EXISTS tf_form_items;
 CREATE TABLE tf_form_items (
   id tinytext NOT NULL COMMENT 'Typeform form field ID',
+  parent_id tinytext DEFAULT NULL COMMENT 'Typeform form field parent ID',
   form tinytext CHARACTER SET ascii NOT NULL COMMENT 'Form ID that owns this field',
+  position int unsigned NOT NULL COMMENT 'Field position or order in form',
   name tinytext DEFAULT NULL COMMENT 'Field slug',
+  parent_name tinytext DEFAULT NULL COMMENT 'Slug of parent field',
   type tinytext DEFAULT NULL COMMENT 'Semantic data type',
   title text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'field title',
   PRIMARY KEY (id(12)),
   UNIQUE KEY id_UNIQUE (id(12)),
   KEY fk_form_items_forms_idx (form(12)),
+  KEY parent_id_idx (parent_id(12)),
   KEY name_idx (name(45)),
+  KEY parent_name_idx (parent_name(45)),
   KEY type_idx (type(15))
 ) DEFAULT CHARSET=utf8 COMMENT='A Typeform form field';
 
@@ -149,6 +154,10 @@ with answer as (
 	select
 		answers.id AS id,
 		answers.response as response,
+		form_items.id AS field_id,
+		form_items.parent_id AS field_parent_id,
+		form_items.parent_name AS field_parent_name,
+		form_items.position AS position,
 		form_items.name AS field_name,
 		form_items.type AS type,
 		form_items.title AS field_title,
@@ -167,7 +176,11 @@ select
 	responses.submitted AS submitted,
 	forms.id as form_id,
 	forms.title as form_title,
+	answer.field_id AS field_id,
 	answer.field_name,
+	answer.field_parent_id AS field_parent_id,
+	answer.field_parent_name AS field_parent_name,
+	answer.position AS position,
 	answer.type,
 	answer.field_title,
 	answer.data_type_hint,
@@ -175,7 +188,7 @@ select
 from
 	tf_responses as responses
 	join tf_forms as forms on forms.id = responses.form
-	left outer join answer on answer.response = responses.id
+	left outer join answer on answer.response = responses.id;
 
 
 
@@ -266,7 +279,7 @@ where
 group by
 	form_id, field_name
 order by
-	a.form, a.field, r.submitted asc
+	a.form, a.field, r.submitted asc;
 
 
 

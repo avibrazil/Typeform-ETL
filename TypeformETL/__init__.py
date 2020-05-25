@@ -182,12 +182,13 @@ class TypeformETL:
         fields = []
 
         # This column order (and names) must match the respective table in the database
-        formItemsColumns=['id','form','name','type','title']
+        formItemsColumns=['id','parent_id','form','position','name','parent_name','type','title']
 
         self.logger.debug('Requesting form items…')
 
         for form in self.forms.index:
             self.response=None
+            field_index=0
             try:
                 self.response=requests.get(self.formItemsURL.format(id=form),
                        headers=self.typeformHeader).json()
@@ -199,18 +200,42 @@ class TypeformETL:
             self.forms.at[form,'workspace'] = self.response['workspace']['href'][-6:]
             
             if 'fields' in self.response:
-                for f in self.response['fields']:
+                for f in self.response['fields']:                
                     field = {}
                     field['form']               = form
                     field['id']                 = f['id']
                     field['title']              = f['title']
                     field['name']               = f['ref']
                     field['type']               = f['type']
+                    field['position']           = field_index
                     
                     if 'description' in f:
                         field['description']    = f['description']
 
                     fields.append(field)
+                    field_index += 1
+                    del field
+                
+                # Handle sub fields (under group fields)
+                if 'properties' in f and 'fields' in f['properties']:
+                    for subf in f['properties']['fields']:
+                        field = {}
+                        field['form']               = form
+                        field['parent_id']          = f['id']
+                        field['id']                 = subf['id']
+                        field['title']              = subf['title']
+                        field['name']               = subf['ref']
+                        field['parent_name']        = f['ref']
+                        field['type']               = subf['type']
+                        field['position']           = field_index
+
+                        if 'description' in subf:
+                            field['description']    = subf['description']
+
+                        fields.append(field)
+                        field_index += 1
+                        del field
+                        
 
             if 'hidden' in self.response:
                 for f in self.response['hidden']:
@@ -221,11 +246,14 @@ class TypeformETL:
                     field['title']     = f
                     field['name']      = f
                     field['type']      = 'hidden'
+                    field['position']  = field_index
 
                     idCalc.update('{}hidden{}'.format(form,f).encode('utf-8'))
                     field['id']        = idCalc.hexdigest(5)
 
                     fields.append(field)
+                    field_index += 1
+                    del field
 
         self.formItems=pd.DataFrame(columns=formItemsColumns)
         self.formItems=self.formItems.append(fields)

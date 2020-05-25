@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="TypeformETL",
-    version="0.5.15",
+    version="0.5.16",
     author="Avi Alkalay",
     author_email="avibrazil@gmail.com",
     description="Ingest all data from a Typeform account and put the data into a SQL database; can be run regularly to sync updates to DB",
