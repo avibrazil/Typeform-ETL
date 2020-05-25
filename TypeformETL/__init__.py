@@ -216,25 +216,25 @@ class TypeformETL:
                     field_index += 1
                     del field
                 
-                # Handle sub fields (under group fields)
-                if 'properties' in f and 'fields' in f['properties']:
-                    for subf in f['properties']['fields']:
-                        field = {}
-                        field['form']               = form
-                        field['parent_id']          = f['id']
-                        field['id']                 = subf['id']
-                        field['title']              = subf['title']
-                        field['name']               = subf['ref']
-                        field['parent_name']        = f['ref']
-                        field['type']               = subf['type']
-                        field['position']           = field_index
+                    # Handle sub fields (under group fields)
+                    if 'properties' in f and 'fields' in f['properties']:
+                        for subf in f['properties']['fields']:
+                            field = {}
+                            field['form']               = form
+                            field['parent_id']          = f['id']
+                            field['id']                 = subf['id']
+                            field['title']              = subf['title']
+                            field['name']               = subf['ref']
+                            field['parent_name']        = f['ref']
+                            field['type']               = subf['type']
+                            field['position']           = field_index
 
-                        if 'description' in subf:
-                            field['description']    = subf['description']
+                            if 'description' in subf:
+                                field['description']    = subf['description']
 
-                        fields.append(field)
-                        field_index += 1
-                        del field
+                            fields.append(field)
+                            field_index += 1
+                            del field
                         
 
             if 'hidden' in self.response:
