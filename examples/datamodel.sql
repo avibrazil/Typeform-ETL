@@ -38,6 +38,7 @@ CREATE TABLE tf_form_items (
   parent_name tinytext DEFAULT NULL COMMENT 'Slug of parent field',
   type tinytext DEFAULT NULL COMMENT 'Semantic data type',
   title text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'field title',
+  description text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'field description',
   PRIMARY KEY (id(12)),
   UNIQUE KEY id_UNIQUE (id(12)),
   KEY fk_form_items_forms_idx (form(12)),
@@ -152,37 +153,37 @@ DROP VIEW IF EXISTS tf_super_answers;
 CREATE OR REPLACE VIEW tf_super_answers AS
 with answer as (
 	select
-		answers.id AS id,
+		answers.id as id,
 		answers.response as response,
-		form_items.id AS field_id,
-		form_items.parent_id AS field_parent_id,
-		form_items.parent_name AS field_parent_name,
-		form_items.position AS position,
-		form_items.name AS field_name,
-		form_items.type AS type,
-		form_items.title AS field_title,
-		answers.data_type_hint AS data_type_hint,
-		answers.answer AS answer
-	from
-		tf_answers as answers,
-		tf_form_items as form_items
-	where
-		form_items.id = answers.field
+		form_items.id as field_id,
+		form_items.parent_id as field_parent_id,
+		form_items.parent_name as field_parent_name,
+		form_items.position as position,
+		form_items.name as field_name,
+		form_items.type as type,
+		form_items.title as field_title,
+		form_items.description as field_description,
+		answers.data_type_hint as data_type_hint,
+		answers.answer as answer
+	from tf_form_items as form_items
+	left outer join tf_answers as answers
+		on answers.field = form_items.id
 )
 select
-	answer.id AS id,
-	responses.id AS response_id,
+	answer.id as id,
+	responses.id as response_id,
 	responses.landed as landed,
-	responses.submitted AS submitted,
+	responses.submitted as submitted,
 	forms.id as form_id,
 	forms.title as form_title,
-	answer.field_id AS field_id,
+	answer.field_id as field_id,
 	answer.field_name,
-	answer.field_parent_id AS field_parent_id,
-	answer.field_parent_name AS field_parent_name,
-	answer.position AS position,
+	answer.field_parent_id as field_parent_id,
+	answer.field_parent_name as field_parent_name,
+	answer.position as position,
 	answer.type,
 	answer.field_title,
+	answer.field_description,
 	answer.data_type_hint,
 	answer.answer
 from

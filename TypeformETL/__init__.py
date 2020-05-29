@@ -182,7 +182,7 @@ class TypeformETL:
         fields = []
 
         # This column order (and names) must match the respective table in the database
-        formItemsColumns=['id','parent_id','form','position','name','parent_name','type','title']
+        formItemsColumns=['id','parent_id','form','position','name','parent_name','type','title','description']
 
         self.logger.debug('Requesting form items…')
 
@@ -209,8 +209,8 @@ class TypeformETL:
                     field['type']               = f['type']
                     field['position']           = field_index
                     
-                    if 'description' in f:
-                        field['description']    = f['description']
+                    if 'properties' in f and 'description' in f['properties']:
+                        field['description']    = f['properties']['description']
 
                     fields.append(field)
                     field_index += 1
@@ -229,8 +229,8 @@ class TypeformETL:
                             field['type']               = subf['type']
                             field['position']           = field_index
 
-                            if 'description' in subf:
-                                field['description']    = subf['description']
+                            if 'properties' in subf and 'description' in subf['properties']:
+                                field['description']    = subf['properties']['description']
 
                             fields.append(field)
                             field_index += 1
