@@ -5,20 +5,30 @@
 --
 
 
+-- If recreating the database from scratch, to avoid foreign key constrains, 
+-- delete all tables first in this order:
+
+DROP TABLE IF EXISTS tf_answers;
+DROP TABLE IF EXISTS tf_responses;
+DROP TABLE IF EXISTS tf_form_items;
+DROP TABLE IF EXISTS tf_forms;
+
+
+
+
 --
 -- Table structure for table tf_forms
 --
 
 DROP TABLE IF EXISTS tf_forms;
 CREATE TABLE tf_forms (
-  id tinytext CHARACTER SET ascii NOT NULL COMMENT 'Typeform form ID',
-  workspace tinytext DEFAULT NULL COMMENT 'Typeform workspace ID',
+  id varchar(8) CHARACTER SET ascii NOT NULL COMMENT 'Typeform form ID',
+  workspace varchar(8) DEFAULT NULL COMMENT 'Typeform workspace ID',
   updated timestamp NULL DEFAULT NULL COMMENT 'When form was last updated, UTC time',
-  url varchar(1000) DEFAULT NULL COMMENT 'Typeform URL that capture answers from humans',
+  url text DEFAULT NULL COMMENT 'Typeform URL that capture answers from humans',
   title text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Title of the form',
-  description mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
-  PRIMARY KEY (id(12)),
-  UNIQUE KEY id_UNIQUE (id(12))
+  description text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  PRIMARY KEY (id)
 ) DEFAULT CHARSET=utf8 COMMENT='A Typeform form';
 
 
@@ -30,22 +40,23 @@ CREATE TABLE tf_forms (
 
 DROP TABLE IF EXISTS tf_form_items;
 CREATE TABLE tf_form_items (
-  id tinytext NOT NULL COMMENT 'Typeform form field ID',
-  parent_id tinytext DEFAULT NULL COMMENT 'Typeform form field parent ID',
-  form tinytext CHARACTER SET ascii NOT NULL COMMENT 'Form ID that owns this field',
+  id varchar(30) CHARACTER SET ascii NOT NULL COMMENT 'Typeform form field ID',
+  parent_id varchar(30) CHARACTER SET ascii DEFAULT NULL COMMENT 'Typeform form field parent ID',
+  form varchar(8) CHARACTER SET ascii NOT NULL COMMENT 'Form ID that owns this field',
   position int unsigned NOT NULL COMMENT 'Field position or order in form',
-  name tinytext DEFAULT NULL COMMENT 'Field slug',
-  parent_name tinytext DEFAULT NULL COMMENT 'Slug of parent field',
-  type tinytext DEFAULT NULL COMMENT 'Semantic data type',
+  name varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Field slug',
+  parent_name varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Slug of parent field',
+  type varchar(20) CHARACTER SET ascii DEFAULT NULL COMMENT 'Semantic data type',
   title text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'field title',
   description text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'field description',
-  PRIMARY KEY (id(12)),
-  UNIQUE KEY id_UNIQUE (id(12)),
-  KEY fk_form_items_forms_idx (form(12)),
-  KEY parent_id_idx (parent_id(12)),
-  KEY name_idx (name(45)),
-  KEY parent_name_idx (parent_name(45)),
-  KEY type_idx (type(15))
+  PRIMARY KEY (id),
+  FOREIGN KEY fk_form_items_form (form) REFERENCES tf_forms(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  FOREIGN KEY fk_form_items_parent_id (parent_id) REFERENCES tf_form_items(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  FOREIGN KEY fk_form_items_parent_name (parent_name) REFERENCES tf_form_items(name) ON UPDATE CASCADE ON DELETE CASCADE,
+  INDEX (name),
+  INDEX (parent_id),
+  INDEX (parent_name),
+  INDEX (type)
 ) DEFAULT CHARSET=utf8 COMMENT='A Typeform form field';
 
 
@@ -57,17 +68,18 @@ CREATE TABLE tf_form_items (
 
 DROP TABLE IF EXISTS tf_responses;
 CREATE TABLE tf_responses (
-  id tinytext NOT NULL COMMENT 'Typeform response ID',
-  form tinytext CHARACTER SET ascii NOT NULL COMMENT 'Form ID that this response refers to',
+  id varchar(45) CHARACTER SET ascii NOT NULL COMMENT 'Typeform response ID',
+  form varchar(8) CHARACTER SET ascii NOT NULL COMMENT 'Form ID that this response refers to',
+  ip_address varchar(40) CHARACTER SET ascii COMMENT 'From network_id',
   landed timestamp NULL DEFAULT NULL COMMENT 'When user landed in form, UTC time',
   submitted timestamp NULL DEFAULT NULL COMMENT 'When user submitted the form, UTC time. If this is NULL, means used didn’t submit.',
   agent text DEFAULT NULL COMMENT 'user agent, a.k.a. browser',
   referer text DEFAULT NULL COMMENT 'referer URL',
-  PRIMARY KEY (id(35)),
-  UNIQUE KEY id_UNIQUE (id(35)),
-  KEY fk_response_forms_idx (form(12)),
-  KEY submitted_idx (submitted)
-) DEFAULT CHARSET=utf8 COMMENT='A Typeform user response without the response fields';
+   KEY (id),
+  FOREIGN KEY fk_responses_form (form) REFERENCES tf_forms(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  INDEX (landed),
+  INDEX (submitted)
+) DEFAULT CHARSET=utf8 COMMENT='A Typeform user response without the answered fields';
 
 
 
@@ -81,18 +93,18 @@ CREATE TABLE tf_responses (
 
 DROP TABLE IF EXISTS tf_answers;
 CREATE TABLE tf_answers (
-  id tinytext NOT NULL COMMENT 'Computed unique and deterministic field answer ID',
-  form tinytext CHARACTER SET ascii NOT NULL COMMENT 'Form ID that this answer refers to',
-  response tinytext CHARACTER SET ascii NOT NULL COMMENT 'Response ID that this answer refers to',
-  field tinytext DEFAULT NULL COMMENT 'Field ID that this answer refers to',
-  data_type_hint tinytext DEFAULT NULL COMMENT 'Basic data type of answer',
+  id varchar(30) NOT NULL COMMENT 'Computed unique and deterministic field answer ID',
+  form varchar(8) CHARACTER SET ascii NOT NULL COMMENT 'Form ID that this answer refers to',
+  response varchar(45) CHARACTER SET ascii NOT NULL COMMENT 'Response ID that this answer refers to',
+  sequence int unsigned NOT NULL COMMENT 'Sequence of answer inside the response',
+  field varchar(30) CHARACTER SET ascii NOT NULL COMMENT 'Field ID that this answer refers to',
+  data_type_hint varchar(20) DEFAULT NULL COMMENT 'Basic data type of answer',
   answer longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Actual user answer for the [hidden] field',
-  PRIMARY KEY (id(14)),
-  UNIQUE KEY id_UNIQUE (id(14)),
-  KEY fk_answer_forms_idx (form(12)),
-  KEY fk_answer_responses_idx (response(35)),
-  KEY fk_answer_form_items_idx (field(14)),
-  KEY data_type_idx (data_type_hint(15))
+   KEY (id),
+  FOREIGN KEY fk_answers_form (form) REFERENCES tf_forms(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  FOREIGN KEY fk_answers_response (response) REFERENCES tf_responses(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  FOREIGN KEY fk_answers_field (field) REFERENCES tf_form_items(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  INDEX (data_type_hint)
 ) DEFAULT CHARSET=utf8 COMMENT='A Typeform user response for each [hidden] field';
 
 
@@ -109,13 +121,12 @@ CREATE TABLE tf_answers (
 
 DROP TABLE IF EXISTS tf_options;
 CREATE TABLE tf_options (
-  id int(10) unsigned NOT NULL AUTO_INCREMENT,
-  name text NOT NULL,
-  value text DEFAULT NULL,
-  comment text DEFAULT NULL,
+  id int unsigned NOT NULL AUTO_INCREMENT,
+  name varchar(30) NOT NULL,
+  value varchar(200) DEFAULT NULL,
+  comment varchar(255) DEFAULT NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY id_UNIQUE (id),
-  KEY optname (name(45))
+  INDEX (name)
 ) DEFAULT CHARSET=utf8 COMMENT='Holds random app options';
 
 
@@ -155,6 +166,7 @@ with answer as (
 	select
 		answers.id as id,
 		answers.response as response,
+		answers.sequence as sequence,
 		form_items.id as field_id,
 		form_items.parent_id as field_parent_id,
 		form_items.parent_name as field_parent_name,
@@ -172,10 +184,12 @@ with answer as (
 select
 	answer.id as id,
 	responses.id as response_id,
+	responses.ip_address as ip_address,
 	responses.landed as landed,
 	responses.submitted as submitted,
 	forms.id as form_id,
 	forms.title as form_title,
+	answer.sequence as sequence,
 	answer.field_id as field_id,
 	answer.field_name,
 	answer.field_parent_id as field_parent_id,

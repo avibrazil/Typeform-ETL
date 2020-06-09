@@ -22,6 +22,7 @@
 import logging
 import math
 import hashlib
+import base64
 from datetime import datetime
 from dateutil import parser as dateparser
 import json
@@ -44,7 +45,8 @@ class TypeformETL:
     
     # DB parameters
     db=None
-    lastSync=None
+    lastLanded=None
+    lastSubmitted=None
     dbWriteChunckSize=3000 # records
     tablePrefix=''
     
@@ -58,6 +60,8 @@ class TypeformETL:
     response=None
     logger=None
 
+    # Debug stuff
+    debugForms=['ARqhAx', 'KPbhd6'] #,'APiACy','YRyBYh']
     
     def __init__(self,token=None,dburl=None,restart=False,dbupdate=True,tableprefix=None):
         self.token=token
@@ -91,15 +95,24 @@ class TypeformETL:
             
     def __getLastSync(self):
         if self.restart:
-            self.lastSync = None
+            self.lastLanded = None
+            self.lastSubmitted = None
         else:
-            options=pd.read_sql(f"SELECT * FROM {self.tablePrefix}options;", self.db)
-            self.lastSync = options[options.name=='typeform_last']['value'].values[0]
+            lasts=pd.read_sql(f"select max(landed) as landed, max(submitted) as submitted from {self.tablePrefix}responses;", self.db)
+            self.lastLanded = lasts['landed'].values[0]
+            self.lastSubmitted = lasts['submitted'].values[0]
 
-        if self.lastSync != None:
-            self.lastSync = dateparser.parse(self.lastSync)
+        if self.lastLanded != None:
+            self.lastLanded = datetime.utcfromtimestamp(self.lastLanded.astype(int) * 1e-9)
         else:
-            self.lastSync = datetime(1970,1,1)
+            self.lastLanded = datetime(1970,1,1)
+
+        if self.lastSubmitted != None:
+            self.lastSubmitted = datetime.utcfromtimestamp(self.lastSubmitted.astype(int) * 1e-9)
+        else:
+            self.lastSubmitted = datetime(1970,1,1)
+
+
 
 
         
@@ -159,6 +172,9 @@ class TypeformETL:
             raise
 
         for f in self.response['items']:
+#             if f['id'] not in self.debugForms:
+#                 continue
+
             form={}
             form['id']        =f['id']
             #form['workspace'] =f['workspace']['href'][:-6]
@@ -186,19 +202,36 @@ class TypeformETL:
 
         self.logger.debug('Requesting form items…')
 
-        for form in self.forms.index:
+#         for form in self.debugForms:
+        for form in self.forms.index.sort_values():
             self.response=None
             field_index=0
             try:
                 self.response=requests.get(self.formItemsURL.format(id=form),
                        headers=self.typeformHeader).json()
+                self.logger.debug('Requested: ' + self.formItemsURL.format(id=form))
             except requests.exceptions.RequestException as error:
                 self.logger.error('Error trying to get form items', exc_info=True)
                 raise error
 
             # Get form's workspace ID from last 6 chars on workspace URL
             self.forms.at[form,'workspace'] = self.response['workspace']['href'][-6:]
-            
+
+            if 'hidden' in self.response:
+                for f in self.response['hidden']:
+                    field = {}
+                    field['form']      = form
+                    field['title']     = f
+                    field['name']      = f
+                    field['type']      = 'hidden'
+                    field['position']  = field_index
+
+                    field['id']        = self.makeID('{}hidden{}'.format(form,f))
+
+                    fields.append(field)
+                    field_index += 1
+                    del field
+
             if 'fields' in self.response:
                 for f in self.response['fields']:                
                     field = {}
@@ -235,26 +268,7 @@ class TypeformETL:
                             fields.append(field)
                             field_index += 1
                             del field
-                        
-
-            if 'hidden' in self.response:
-                for f in self.response['hidden']:
-                    idCalc=hashlib.new('shake_256')
-
-                    field = {}
-                    field['form']      = form
-                    field['title']     = f
-                    field['name']      = f
-                    field['type']      = 'hidden'
-                    field['position']  = field_index
-
-                    idCalc.update('{}hidden{}'.format(form,f).encode('utf-8'))
-                    field['id']        = idCalc.hexdigest(5)
-
-                    fields.append(field)
-                    field_index += 1
-                    del field
-
+        
         self.formItems=pd.DataFrame(columns=formItemsColumns)
         self.formItems=self.formItems.append(fields)
         self.formItems.set_index('id',inplace=True)
@@ -270,24 +284,30 @@ class TypeformETL:
         answers  = []
 
         # This column order (and names) must match the respective table in the database
-        metaColumns=['id', 'form', 'landed', 'submitted', 'agent', 'referer']
-        answerColumns=['id', 'form', 'response', 'field', 'data_type_hint', 'answer']
+        metaColumns=['id', 'form', 'ip_address', 'landed', 'submitted', 'agent', 'referer']
+        answerColumns=['id', 'form', 'response', 'sequence', 'field', 'data_type_hint', 'answer']
         
 
-#         debugIndex=['KPbhd6'] #,'APiACy','YRyBYh']
-#         for form in debugIndex:
-        for form in self.forms.index:
+#         for form in self.debugForms:
+        for form in self.forms.index.sort_values():
             for completed in [True,False]:
-                completed=str(completed).lower()
-        
+            
+                if completed:
+                    since=self.lastSubmitted.isoformat()
+                else:
+                    since=self.lastLanded.isoformat()
+            
                 self.response=None
                 try:
                     self.logger.debug('Requesting response statistics for form «{}», submitted={}…'.format(form,completed))
 
-                    self.response=requests.get(self.respListURL.format(id=form, psize=1, page=1,
-                                                                       completed=completed,
-                                                                       since=self.lastSync.isoformat()),
-                                           headers=self.typeformHeader).json()
+                    self.response=requests.get(
+                            self.respListURL.format(id=form, psize=1, page=1,
+                                       completed=str(completed).lower(),
+                                       since=since
+                            ),
+                            headers=self.typeformHeader
+                    ).json()
 
 
                     #self.logger.debug('Form «{}», submitted={}, looks like: {}'.format(form,completed,str(self.response)[:150]))
@@ -301,13 +321,26 @@ class TypeformETL:
                 else:
                     number_of_pages_of_1000_responses = 0
 
+                lastToken=None
                 for page in range(1,number_of_pages_of_1000_responses+1):
-                    try:
-                        responseSet=requests.get(self.respListURL.format(id=form, psize=1000, page=page, completed=completed,
-                                                                        since=self.lastSync.isoformat()),
-                                                headers=self.typeformHeader).json()
+                    try:                    
+                        url=self.respListURL.format(
+                            id=form, psize=1000,
+                            page=page, completed=str(completed).lower(),
+                            since=since
+                        )
+
+                        if lastToken:
+                            # Append last token we have for this page
+                            url += f'&before={lastToken}'
+
+                        
+                        responseSet=requests.get(url,headers=self.typeformHeader).json()
+                        
+#                         self.logger.debug(responseSet)
 
                         self.logger.debug('Requesting responses for form «{}»: {} answers'.format(form,responseSet['total_items']))
+                        self.logger.debug(f'Requesting from: {url}')
 
                     except requests.exceptions.RequestException as error:
                         self.logger.error('Error trying to get response details for form «{}»'.format(form), exc_info=True)
@@ -325,31 +358,34 @@ class TypeformETL:
                         meta['agent']       = i['metadata']['user_agent']
                         meta['referer']     = i['metadata']['referer']
 
+                        if 'network_id' in i['metadata']:
+                            meta['ip_address'] = i['metadata']['network_id']
+
                         if 'submitted_at' in i:
                             # apparently became an optional parameter in 2020-03-02
                             meta['submitted'] = dateparser.parse(i['submitted_at']).replace(tzinfo=None)
 
+                        lastToken=i['token'] # generally same as i['response_id'], but just to follow docs
                         metas.append(meta)
 
+                        seq=0
+
                         # Handle all hidden fields of response
-                        if 'hidden' in i.keys():
-                            for field in i['hidden'].keys():
-                                idCalc=hashlib.new('shake_256')
-                                idCalc.update('{}{}{}'.format(form,meta['id'],field).encode('UTF-8'))
+                        for t in ['hidden']: #,'calculated']:
+                            if t in i.keys():
+                                for field in i[t].keys():
+                                    answer = {}
+                                    answer['id']          =  self.makeID('{}{}{}'.format(form,meta['id'],field))
+                                    answer['response']    =  meta['id']
+                                    answer['form']        =  form
+                                    answer['sequence']    =  seq
+                                    answer['answer']      =  i[t][field]
+                                    answer['field']       =  self.makeID('{}{}{}'.format(form,t,field))
 
-                                answer = {}
-                                answer['id']          =  idCalc.hexdigest(5)
-                                answer['response']    =  meta['id']
-                                answer['form']        =  form
-                                answer['answer']      =  i['hidden'][field]
+                                    answer['data_type_hint'] = t
 
-                                idCalc=hashlib.new('shake_256')
-                                idCalc.update('{}hidden{}'.format(form,field).encode('UTF-8'))
-                                answer['field']       =  idCalc.hexdigest(5)
-
-                                answer['data_type_hint'] = 'hidden'
-
-                                answers.append(answer)
+                                    answers.append(answer)
+                                    seq+=1
 
 
                         # Handle all regular fields of response
@@ -360,35 +396,45 @@ class TypeformETL:
                                 meta['submitted'] = None
                             else:
                                 for field in i['answers']:
-                #                     print(f'\t{field}')
-                                    idCalc=hashlib.new('shake_256')
-                                    idCalc.update('{}{}{}'.format(form,meta['id'],field['field']['id']).encode('UTF-8'))
-
                                     answer = {}
-                                    answer['id']       =  idCalc.hexdigest(5)
+                                    answer['id']       =  self.makeID('{}{}{}'.format(form,meta['id'],field['field']['id']))
                                     answer['response'] =  meta['id']
                                     answer['form']     =  form
+                                    answer['sequence'] =  seq
                                     answer['field']    =  field['field']['id']
                                     answer['data_type_hint'] = field['type']
 
 
                                     # Handle multichoice fields
-                                    if field['type'] == 'choices':
-                                        # Handle multi-choice fields: concatenate with `|` as separator
-                                        answer['answer'] = []
-                                        for k in field[field['type']].keys():
-                                            for a in field[field['type']][k]:
-                                                answer['answer'].append(a)
-                                        answer['answer'] = '|'.join(answer['answer'])
-                                    elif field['type'] == 'choice':
-                                        # Handle single-choice fields
-                                        for k in field[field['type']].keys():
-                                            answer['answer']=field[field['type']][k]
+                                    if field['type'] == 'choices' or field['type'] == 'choice':
+                                        answer['answer'] = {}
+                                        
+                                        if 'labels' in field[field['type']] or 'label' in field[field['type']]:
+                                            if field['type'] == 'choices':
+                                                # Multi-choice
+                                                answer['answer'] = dict(zip(
+                                                    field[field['type']]['ids'],
+                                                    field[field['type']]['labels']
+                                                ))
+                                            else:
+                                                # Single choice
+                                                answer['answer'][field[field['type']]['id']] = str(field[field['type']]['label'])
+                                                
+                                        if 'other' in field[field['type']]:
+                                            answer['answer']['other'] = field[field['type']]['other']
+
+                                        # convert to compressed Unicode JSON to store in DB
+                                        answer['answer']=json.dumps(
+                                            answer['answer'],
+                                            ensure_ascii=False,
+                                            separators=(',', ':')
+                                        )
                                     else:
                                         # Default: just get the content, always as a string
                                         answer['answer'] = str(field[field['type']])
 
                                     answers.append(answer)
+                                    seq+=1
 
 
         self.responses=pd.DataFrame(columns=metaColumns)
@@ -398,6 +444,7 @@ class TypeformETL:
         # Sort reponses by «landed» time
         self.responses.sort_values(by='landed', inplace=True)
         self.responses.set_index('id',inplace=True)
+#         self.logger.debug(self.responses)
         del metas
 
         self.answers=pd.DataFrame(columns=answerColumns)
@@ -411,6 +458,11 @@ class TypeformETL:
         del answers    
     
 
+    def makeID(self,content,contentEncoding='UTF-8',digester=base64.b85encode,algo='shake_256',size=20):
+        machine=hashlib.new(algo)
+        machine.update(content.encode(contentEncoding))
+        return digester(machine.digest(size)).decode('ascii')
+        
     
     def statistics(self):
         self.logger.info('Number of forms: {}'.format(self.forms.shape[0]))
@@ -421,7 +473,7 @@ class TypeformETL:
         
     
     def getUpdates(self):
-        self.logger.debug('Requesting form updates since {}…'.format(self.lastSync))
+        self.logger.debug('Requesting form updates since {}…'.format(self.lastSubmitted))
 
         self.getForms()
         self.getFormItems()
@@ -447,16 +499,23 @@ class TypeformETL:
                 # Pandas plain to_sql() doesn't take care of correct column data type,
                 # so we have to inherit from target table like this:
                 self.db.execute('DROP TABLE IF EXISTS {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
-                self.db.execute('CREATE TABLE {prefix}{temp} AS SELECT * FROM {prefix}{target} LIMIT 1;'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
-                self.db.execute('TRUNCATE TABLE {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
+                self.db.execute('CREATE TABLE {prefix}{temp} LIKE {prefix}{target};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
+#                 self.db.execute('TRUNCATE TABLE {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
 
                 if self.__dict__[e['df']].shape[0] > 1.25*self.dbWriteChunckSize:
+                    chunkIndex=0
                     for chunk in range(0,math.ceil(self.__dict__[e['df']].shape[0]/self.dbWriteChunckSize)):
                         self.logger.debug('Writting «{df}» to DB: [{start}:{end})'.format(
                             df=e['df'],
                             start=chunk*self.dbWriteChunckSize,
                             end=(chunk+1)*self.dbWriteChunckSize
                         ))
+#                         self.__dict__[e['df']][chunk*self.dbWriteChunckSize:(chunk+1)*self.dbWriteChunckSize].reset_index().to_csv(
+#                             f"{e['temp']}.{chunkIndex}.tsv",
+#                             sep='\t',
+#                             index=False
+#                         )
+                        
                         self.__dict__[e['df']][chunk*self.dbWriteChunckSize:(chunk+1)*self.dbWriteChunckSize].reset_index().to_sql(
                             name=self.tablePrefix + e['temp'],
                             index=False,
@@ -465,7 +524,15 @@ class TypeformETL:
                             if_exists='append',
                             con=self.db
                         )
+                        chunkIndex+=1
+                        
+                        
                 else:
+#                     self.__dict__[e['df']].reset_index().to_csv(
+#                         f"{e['temp']}.tsv",
+#                         sep='\t',
+#                         index=False
+#                     )
                     self.__dict__[e['df']].reset_index().to_sql(
                         name=self.tablePrefix + e['temp'],
                         index=False,
