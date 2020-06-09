@@ -40,6 +40,8 @@ Remove the `--no-deps` if you wish to upgrade also dependent modules as pandas a
 
 ## Usage
 
+[Get a personal access token](https://developer.typeform.com/get-started/personal-access-token/) from [Typeform's admin portal](https://admin.typeform.com/account#/section/tokens).
+
 ### With plain command line
 
 ```shell
