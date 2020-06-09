@@ -1,6 +1,6 @@
 # Typeform ETL
 
-A python class and main function to extract and continuously sync data from a Typeform.com account.
+A python class and main function to extract and continuously sync data from a [Typeform.com](https://typeform.com) account.
 
 ## Installation
 
@@ -89,7 +89,7 @@ tf.sync()
 ```
 
 ## Database
-A SQL database must exist. MySQL and MariaDB tested.
+A SQL database must exist. MySQL and MariaDB tested. Use the `examples/datamodel.sql` script to create the database.
 
 Having “`tf_`” as a table prefix, these are the objects (tables and views) that will be created and updated:
 
