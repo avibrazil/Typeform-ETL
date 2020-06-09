@@ -1,0 +1,19 @@
+---
+- 0.6 - 2020-06-09:
+	New columns for form_items:
+    	- parent_id (field ID of parent field)
+        - parent_name (field slug of parent field)
+        - Field description
+        - Field position
+	New columns for responses: 
+    	- ip_address (waiting for a TF bug fix to make it more meaningful)
+	Changes to answers table:
+    	- Choice or multi-choice fields now store answers in JSON format including the choice ID
+        - Answer IDs are bigger and more reliable using b85encode(shake_256()) hashes
+        - Answer sequence
+	New function to calculate IDs as b85encode(shake_256()) hashes
+    ETL now happens in the sorted order of form IDs
+    nps_daily view is more performatic due to better indexes on answers, responses, forms
+    All talbes now have foreign keys
+    All tables now have improved keys and optimized indexes
+...
