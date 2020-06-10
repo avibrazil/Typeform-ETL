@@ -1,11 +1,12 @@
 import setuptools
+from TypeformETL import __version__
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="TypeformETL",
-    version="0.6",
+    version=__version__,
     author="Avi Alkalay",
     author_email="avibrazil@gmail.com",
     description="Ingest all data from a Typeform account and put the data into a SQL database; can be run regularly to sync updates to DB",
