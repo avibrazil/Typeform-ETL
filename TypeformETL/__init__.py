@@ -31,6 +31,8 @@ import pandas as pd
 import sqlalchemy
 from sqlalchemy.types import BLOB
 
+__version__ = '0.6.1'
+
 module_logger = logging.getLogger(__name__)
 
 class TypeformETL:
@@ -123,8 +125,9 @@ class TypeformETL:
         self.db.execute("UPDATE {pref}options SET value='{last}' WHERE name='typeform_last'".format(last=lastData,pref=self.tablePrefix))
 
         # Update the sync log
-        self.db.execute("INSERT INTO {}synclog (timestamp,forms,form_items,responses,answers) VALUES (UTC_TIMESTAMP(),{},{},{},{})".format(
+        self.db.execute("INSERT INTO {}synclog (timestamp,version,forms,form_items,responses,answers) VALUES (UTC_TIMESTAMP(),'{}',{},{},{},{})".format(
             self.tablePrefix,
+            __version__,
             self.forms.shape[0],
             self.formItems.shape[0],
             self.responses.shape[0],
@@ -547,7 +550,7 @@ class TypeformETL:
 
 
 
-            self.db.execute('REPLACE INTO {prefix}{target} (SELECT * FROM {prefix}{temp}); DROP TABLE {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
+            self.db.execute('INSERT INTO {prefix}{target} (SELECT * FROM {prefix}{temp}) ON DUPLICATE KEY UPDATE id=VALUES(id); DROP TABLE {prefix}{temp}'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
         
 
     def sync(self):

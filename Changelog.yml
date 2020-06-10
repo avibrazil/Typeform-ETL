@@ -1,4 +1,8 @@
 ---
+- 0.6.1 - 2020-06-10:
+    Module now exports its version in __version__
+    Synclog now includes module version
+    New strategy to update tables compatible with foreign keys, using INSER ON DUPLICATE KEY UPDATE
 - 0.6 - 2020-06-09:
 	New columns for form_items:
     	- parent_id (field ID of parent field)
@@ -16,4 +20,6 @@
     nps_daily view is more performatic due to better indexes on answers, responses, forms
     All talbes now have foreign keys
     All tables now have improved keys and optimized indexes
+    Responses are now fetched with the 'before' API parameter, as recomended by Typeform,
+        but it has bugs in the Typeform side. Bug report opened.
 ...

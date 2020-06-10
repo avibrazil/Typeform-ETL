@@ -144,6 +144,7 @@ DROP TABLE IF EXISTS tf_synclog;
 CREATE TABLE tf_synclog (
   id int(11) NOT NULL AUTO_INCREMENT,
   timestamp timestamp NULL DEFAULT NULL COMMENT 'UTC time of last sync',
+  version varchar(10) DEFAULT NULL COMMENT 'Version of TypeformETL module executed',
   forms int(10) unsigned DEFAULT 0 COMMENT 'Number of forms read in this sync',
   form_items int(10) unsigned DEFAULT 0 COMMENT 'Number of form fields read in this sync',
   responses int(10) unsigned DEFAULT 0 COMMENT 'Number of responses written in this sync',
