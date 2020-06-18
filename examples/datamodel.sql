@@ -20,8 +20,7 @@ DROP TABLE IF EXISTS tf_forms;
 -- Table structure for table tf_forms
 --
 
-DROP TABLE IF EXISTS tf_forms;
-CREATE TABLE tf_forms (
+CREATE TABLE IF NOT EXISTS tf_forms (
   id varchar(8) CHARACTER SET ascii NOT NULL COMMENT 'Typeform form ID',
   workspace varchar(8) DEFAULT NULL COMMENT 'Typeform workspace ID',
   updated timestamp NULL DEFAULT NULL COMMENT 'When form was last updated, UTC time',
@@ -38,8 +37,7 @@ CREATE TABLE tf_forms (
 -- Table structure for table tf_form_items
 --
 
-DROP TABLE IF EXISTS tf_form_items;
-CREATE TABLE tf_form_items (
+CREATE TABLE IF NOT EXISTS tf_form_items (
   id varchar(30) CHARACTER SET ascii NOT NULL COMMENT 'Typeform form field ID',
   parent_id varchar(30) CHARACTER SET ascii DEFAULT NULL COMMENT 'Typeform form field parent ID',
   form varchar(8) CHARACTER SET ascii NOT NULL COMMENT 'Form ID that owns this field',
@@ -66,8 +64,7 @@ CREATE TABLE tf_form_items (
 -- Table structure for table tf_responses
 --
 
-DROP TABLE IF EXISTS tf_responses;
-CREATE TABLE tf_responses (
+CREATE TABLE IF NOT EXISTS tf_responses (
   id varchar(45) CHARACTER SET ascii NOT NULL COMMENT 'Typeform response ID',
   form varchar(8) CHARACTER SET ascii NOT NULL COMMENT 'Form ID that this response refers to',
   ip_address varchar(40) CHARACTER SET ascii COMMENT 'From network_id',
@@ -75,7 +72,7 @@ CREATE TABLE tf_responses (
   submitted timestamp NULL DEFAULT NULL COMMENT 'When user submitted the form, UTC time. If this is NULL, means used didn’t submit.',
   agent text DEFAULT NULL COMMENT 'user agent, a.k.a. browser',
   referer text DEFAULT NULL COMMENT 'referer URL',
-   KEY (id),
+  PRIMARY KEY (id),
   FOREIGN KEY fk_responses_form (form) REFERENCES tf_forms(id) ON UPDATE CASCADE ON DELETE CASCADE,
   INDEX (landed),
   INDEX (submitted)
@@ -91,8 +88,7 @@ CREATE TABLE tf_responses (
 -- Table structure for table tf_answers
 --
 
-DROP TABLE IF EXISTS tf_answers;
-CREATE TABLE tf_answers (
+CREATE TABLE IF NOT EXISTS tf_answers (
   id varchar(30) NOT NULL COMMENT 'Computed unique and deterministic field answer ID',
   form varchar(8) CHARACTER SET ascii NOT NULL COMMENT 'Form ID that this answer refers to',
   response varchar(45) CHARACTER SET ascii NOT NULL COMMENT 'Response ID that this answer refers to',
@@ -100,7 +96,7 @@ CREATE TABLE tf_answers (
   field varchar(30) CHARACTER SET ascii NOT NULL COMMENT 'Field ID that this answer refers to',
   data_type_hint varchar(20) DEFAULT NULL COMMENT 'Basic data type of answer',
   answer longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Actual user answer for the [hidden] field',
-   KEY (id),
+  PRIMARY KEY (id),
   FOREIGN KEY fk_answers_form (form) REFERENCES tf_forms(id) ON UPDATE CASCADE ON DELETE CASCADE,
   FOREIGN KEY fk_answers_response (response) REFERENCES tf_responses(id) ON UPDATE CASCADE ON DELETE CASCADE,
   FOREIGN KEY fk_answers_field (field) REFERENCES tf_form_items(id) ON UPDATE CASCADE ON DELETE CASCADE,
@@ -140,8 +136,7 @@ CREATE TABLE tf_options (
 -- Table structure for table tf_synclog
 --
 
-DROP TABLE IF EXISTS tf_synclog;
-CREATE TABLE tf_synclog (
+CREATE TABLE IF NOT EXISTS tf_synclog (
   id int(11) NOT NULL AUTO_INCREMENT,
   timestamp timestamp NULL DEFAULT NULL COMMENT 'UTC time of last sync',
   version varchar(10) DEFAULT NULL COMMENT 'Version of TypeformETL module executed',

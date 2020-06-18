@@ -503,7 +503,7 @@ class TypeformETL:
                 # so we have to inherit from target table like this:
                 self.db.execute('DROP TABLE IF EXISTS {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
                 self.db.execute('CREATE TABLE {prefix}{temp} LIKE {prefix}{target};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
-#                 self.db.execute('TRUNCATE TABLE {prefix}{temp};'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
+                self.db.execute('ALTER TABLE {prefix}{temp} DROP PRIMARY KEY;'.format(temp=e['temp'],target=e['table'],prefix=self.tablePrefix))
 
                 if self.__dict__[e['df']].shape[0] > 1.25*self.dbWriteChunckSize:
                     chunkIndex=0
