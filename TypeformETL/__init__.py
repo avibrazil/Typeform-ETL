@@ -31,7 +31,7 @@ import pandas as pd
 import sqlalchemy
 from sqlalchemy.types import BLOB
 
-__version__ = '0.6.1'
+__version__ = '0.6.2'
 
 module_logger = logging.getLogger(__name__)
 
