@@ -16,7 +16,7 @@ dnf install python3-requests python3-sqlalchemy python3-pandas python3-configobj
 Under Red Hat Enterprise Linux 8:
 
 ```shell
-dnf install python3-requests python3-sqlalchemy python3-configobj mariadb-connector-c-devel mariadb-connector-c gcc
+dnf install python38 python38-devel python38-pytz python38-numpy python38-urllib3 python38-idna python3-dateutil python38-six python3-requests python3-sqlalchemy python3-configobj mariadb-connector-c-devel mariadb-connector-c gcc
 pip3 install mysqlclient --user
 ```
 This MariaDB connector is the one that works with SQLAlchemy (used by the module). Other connectors as PyMySQL failed our tests.
