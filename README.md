@@ -45,7 +45,7 @@ Remove the `--no-deps` if you wish to upgrade also dependent modules as pandas a
 ### With plain command line
 
 ```shell
-python3 -m TypeformETL --typeform "___API_KEY___" --database 'mysql://user:password@host/dbname'
+python3 -m TypeformETL --typeform "___API_KEY___" --database 'mysql://user:password@host/dbname?charset=utf8mb4'
 ```
 
 Add `--restart` to get and sync all data from Typeform, not just last updates.
@@ -66,8 +66,8 @@ So if a database URL is passed both in command line and config file, the command
 I have these 2 entries together on my crontab and then I don't need a config file:
 
 ```shell
-@hourly    python3 -m TypeformETL --typeform "___API_KEY___" --database 'mysql://user:password@host/dbname' --tableprefix 'tf_'
-30 3 * * 0 python3 -m TypeformETL --typeform "___API_KEY___" --database 'mysql://user:password@host/dbname' --tableprefix 'tf_' --restart
+@hourly    python3 -m TypeformETL --typeform "___API_KEY___" --database 'mysql://user:password@host/dbname?charset=utf8mb4' --tableprefix 'tf_'
+30 3 * * 0 python3 -m TypeformETL --typeform "___API_KEY___" --database 'mysql://user:password@host/dbname?charset=utf8mb4' --tableprefix 'tf_' --restart
 ```
 
 Which will run a sync every hour. And once a week will reset data tables and bring all data from scratch.
@@ -79,7 +79,7 @@ from TypeformETL import TypeformETL
 
 tf = TypeformETL(
 	token='___API_KEY___',
-	dburl='mysql://user:password@host/dbname',
+	dburl='mysql://user:password@host/dbname?charset=utf8mb4',
 	restart=False,     # True to reset data tables and bring all data from scratch
 	dbupdate=True,     # Wether to simulate or actually write in database
 	tableprefix='tf_'  # To better organize your tables
